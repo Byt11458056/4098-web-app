@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trash Detector AI</title>
+    <style>
+        body { margin: 0; background: #111; font-family: sans-serif; overflow: hidden; }
+        
+        /* Container ensures video and canvas overlap perfectly */
+        #camera-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        video, canvas {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Fills screen like a mobile app */
+        }
+
+        /* The "HUD" overlay for buttons */
+        #ui-layer {
+            position: absolute;
+            bottom: 30px;
+            left: 0;
+            width: 100%;
+            z-index: 10;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn {
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid #555;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .btn.active { border-color: #00FF00; color: #00FF00; background: rgba(0, 255, 0, 0.1); }
+    </style>
+</head>
+<body>
+
+    <div id="camera-container">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="output"></canvas>
+        
+        <div id="ui-layer">
+            <button class="btn active" onclick="setMode('all')">All Trash</button>
+            <button class="btn" onclick="setMode('can')">Cans Only</button>
+            <button class="btn" onclick="setMode('paper')">Paper Only</button>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('output');
+        const ctx = canvas.getContext('2d');
+        
+        let isProcessing = false;
+        let currentMode = 'all';
+
+        // 1. Start Camera
+        async function startCamera() {
+            try {
+                // Request back camera if on mobile
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "environment" } 
+                });
+                video.srcObject = stream;
+            } catch (err) {
+                alert("Camera access denied. Please allow camera permissions.");
+            }
+        }
+
+        // 2. The Main Loop
+        async function processFrame() {
+            // Ensure canvas matches screen size
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            // Draw current video frame to canvas
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // If we are already sending a frame, skip this turn (prevents lag)
+            if (!isProcessing) {
+                isProcessing = true;
+                
+                // Create a small snapshot for the AI (sending 4k video is too slow)
+                const offscreen = document.createElement('canvas');
+                offscreen.width = 640; // AI standard size
+                offscreen.height = 640; 
+                const offCtx = offscreen.getContext('2d');
+                offCtx.drawImage(video, 0, 0, 640, 640);
+                
+                const imageBase64 = offscreen.toDataURL('image/jpeg', 0.5); // Low quality JPG
+
+                try {
+                    // Send to Python
+                    const response = await fetch('/detect', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ image: imageBase64 })
+                    });
+                    const data = await response.json();
+                    
+                    // Draw Boxes
+                    drawBoxes(data.detections);
+
+                } catch (err) {
+                    console.error(err);
+                } finally {
+                    isProcessing = false;
+                }
+            }
+            
+            // Request next frame immediately (Smooth animation)
+            requestAnimationFrame(processFrame);
+        }
+
+        function drawBoxes(detections) {
+            // We just drew the video in processFrame, so now we draw ON TOP
+            
+            detections.forEach(det => {
+                // Filter logic
+                if (currentMode === 'can' && !det.label.includes('can')) return;
+                if (currentMode === 'paper' && !det.label.includes('paper')) return;
+
+                // Coordinates are normalized (0-1), so scale to canvas size
+                const [x1, y1, x2, y2] = det.box;
+                const x = x1 * canvas.width;
+                const y = y1 * canvas.height;
+                const w = (x2 - x1) * canvas.width;
+                const h = (y2 - y1) * canvas.height;
+
+                // Color logic
+                let color = '#FF0000';
+                if (det.label.includes('bottle')) color = '#00FF00';
+                if (det.label.includes('can')) color = '#00FFFF';
+                if (det.label.includes('paper')) color = '#FFA500';
+
+                // Draw Box
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 4;
+                ctx.strokeRect(x, y, w, h);
+
+                // Draw Label
+                ctx.fillStyle = color;
+                ctx.fillRect(x, y - 25, w, 25);
+                ctx.fillStyle = 'black';
+                ctx.font = 'bold 16px Arial';
+                ctx.fillText(`${det.label} ${(det.confidence*100).toFixed(0)}%`, x + 5, y - 5);
+            });
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        // Init
+        startCamera();
+        video.addEventListener('play', () => {
+            processFrame();
+        });
+    </script>
+</body>
+</html>
