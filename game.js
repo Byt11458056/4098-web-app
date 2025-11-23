@@ -6,8 +6,11 @@ const CONFIG = {
     iouThreshold: 0.45,
     maxDetections: 100,
     classNames: ['can', 'can', 'paper', 'plastic-bottle'], // metal mapped to can
-    gameDuration: 120, // seconds
-    pointsPerObject: 2
+    difficulties: {
+        easy: 120,
+        normal: 90,
+        hard: 60
+    }
 };
 
 // Global variables
@@ -22,17 +25,19 @@ let facingMode = 'environment';
 
 // Game state
 let gameState = {
-    targetScore: 0,
-    currentScore: 0,
-    timeRemaining: CONFIG.gameDuration,
+    selectedObject: null,
+    difficulty: null,
+    maxTime: 0,
+    elapsedTime: 0,
     isGameActive: false,
     timerInterval: null,
-    detectedObjects: new Set() // Track detected objects to avoid double counting
+    startTime: 0
 };
 
 // Screen management
 const screens = {
-    welcome: document.getElementById('welcomeScreen'),
+    objectSelection: document.getElementById('objectSelectionScreen'),
+    difficulty: document.getElementById('difficultyScreen'),
     game: document.getElementById('gameScreen'),
     end: document.getElementById('endScreen')
 };
@@ -40,12 +45,6 @@ const screens = {
 function showScreen(screenName) {
     Object.values(screens).forEach(screen => screen.classList.add('hidden'));
     screens[screenName].classList.remove('hidden');
-}
-
-// Generate random even target score (2, 4, 6, 8, or 10)
-function generateTargetScore() {
-    const evenNumbers = [2, 4, 6, 8, 10];
-    return evenNumbers[Math.floor(Math.random() * evenNumbers.length)];
 }
 
 // Initialize app
@@ -57,8 +56,8 @@ async function init() {
     // Setup event listeners
     setupEventListeners();
     
-    // Show welcome screen
-    showScreen('welcome');
+    // Show object selection screen
+    showScreen('objectSelection');
 }
 
 // Load TensorFlow.js model
@@ -127,17 +126,21 @@ function stopCamera() {
 
 // Start game
 async function startGame() {
-    // Generate target score
-    gameState.targetScore = generateTargetScore();
-    gameState.currentScore = 0;
-    gameState.timeRemaining = CONFIG.gameDuration;
+    // Initialize game state
+    gameState.elapsedTime = 0;
     gameState.isGameActive = true;
-    gameState.detectedObjects.clear();
+    gameState.startTime = Date.now();
     
-    // Update UI
-    document.getElementById('targetScore').textContent = gameState.targetScore;
-    document.getElementById('currentScore').textContent = gameState.currentScore;
-    document.getElementById('timer').textContent = gameState.timeRemaining;
+    // Update UI with selected object and difficulty
+    const objectEmojis = {
+        'can': '🥫 Can',
+        'paper': '📄 Paper',
+        'plastic-bottle': '🍾 Bottle'
+    };
+    
+    document.getElementById('detectedType').textContent = objectEmojis[gameState.selectedObject] || gameState.selectedObject;
+    document.getElementById('difficulty').textContent = gameState.difficulty.charAt(0).toUpperCase() + gameState.difficulty.slice(1);
+    document.getElementById('timer').textContent = '0s';
     
     // Show game screen
     showScreen('game');
@@ -162,27 +165,26 @@ async function startGame() {
     startTimer();
 }
 
-// Start timer
+// Start timer (counts up)
 function startTimer() {
     gameState.timerInterval = setInterval(() => {
-        gameState.timeRemaining--;
-        document.getElementById('timer').textContent = gameState.timeRemaining;
+        gameState.elapsedTime = Math.floor((Date.now() - gameState.startTime) / 1000);
+        document.getElementById('timer').textContent = gameState.elapsedTime + 's';
         
-        // Add warning animation when time is low
-        if (gameState.timeRemaining <= 10) {
-            document.getElementById('timer').style.color = '#ff4444';
-            document.getElementById('timer').style.animation = 'pulse 0.5s infinite';
+        // Warning when approaching max time
+        if (gameState.elapsedTime >= gameState.maxTime - 10 && gameState.elapsedTime < gameState.maxTime) {
+            document.getElementById('timer').style.color = '#ff9800';
         }
         
-        // End game when time runs out
-        if (gameState.timeRemaining <= 0) {
-            endGame();
+        // Auto-end game when time runs out
+        if (gameState.elapsedTime >= gameState.maxTime) {
+            endGame(true); // true indicates time ran out
         }
     }, 1000);
 }
 
 // End game
-function endGame() {
+function endGame(timeRanOut = false) {
     gameState.isGameActive = false;
     isDetecting = false;
     
@@ -202,20 +204,33 @@ function endGame() {
     }
     
     // Update end screen
-    document.getElementById('finalTarget').textContent = gameState.targetScore;
-    document.getElementById('finalScore').textContent = gameState.currentScore;
+    const objectEmojis = {
+        'can': '🥫 Can',
+        'paper': '📄 Paper',
+        'plastic-bottle': '🍾 Bottle'
+    };
+    
+    document.getElementById('finalObjectType').textContent = objectEmojis[gameState.selectedObject] || gameState.selectedObject;
+    document.getElementById('finalDifficulty').textContent = gameState.difficulty.charAt(0).toUpperCase() + gameState.difficulty.slice(1);
+    document.getElementById('finalTime').textContent = gameState.elapsedTime + 's';
     
     // Determine result message
     const resultMessage = document.getElementById('resultMessage');
-    if (gameState.currentScore >= gameState.targetScore) {
-        resultMessage.textContent = '🎉 Amazing! You reached the target!';
-        resultMessage.style.color = '#4CAF50';
-    } else if (gameState.currentScore >= gameState.targetScore * 0.7) {
-        resultMessage.textContent = '👍 Great effort! Almost there!';
+    if (timeRanOut) {
+        resultMessage.textContent = '⏰ Time\'s up! You used all ' + gameState.maxTime + ' seconds!';
         resultMessage.style.color = '#FF9800';
     } else {
-        resultMessage.textContent = '💪 Keep practicing! Try again!';
-        resultMessage.style.color = '#2196F3';
+        const percentage = (gameState.elapsedTime / gameState.maxTime) * 100;
+        if (percentage < 50) {
+            resultMessage.textContent = '🌟 Amazing speed! Finished in ' + gameState.elapsedTime + 's!';
+            resultMessage.style.color = '#4CAF50';
+        } else if (percentage < 80) {
+            resultMessage.textContent = '👍 Good job! Finished in ' + gameState.elapsedTime + 's!';
+            resultMessage.style.color = '#2196F3';
+        } else {
+            resultMessage.textContent = '✓ Complete! Finished in ' + gameState.elapsedTime + 's!';
+            resultMessage.style.color = '#FF9800';
+        }
     }
     
     // Show end screen
@@ -251,9 +266,6 @@ async function detectFrame() {
         
         // Process predictions
         const detections = processOutput(predictions);
-        
-        // Update score based on detections
-        updateScore(detections);
         
         // Draw results
         drawDetections(detections);
@@ -291,15 +303,19 @@ function processOutput(output) {
         
         if (maxScore > CONFIG.scoreThreshold) {
             const className = CONFIG.classNames[classId];
-            detections.push({
-                x: Math.max(0, xCenter - width / 2),
-                y: Math.max(0, yCenter - height / 2),
-                width: Math.min(1 - (xCenter - width / 2), width),
-                height: Math.min(1 - (yCenter - height / 2), height),
-                score: maxScore,
-                class: className,
-                classId: classId
-            });
+            
+            // Only show detections matching the selected object type
+            if (className === gameState.selectedObject) {
+                detections.push({
+                    x: Math.max(0, xCenter - width / 2),
+                    y: Math.max(0, yCenter - height / 2),
+                    width: Math.min(1 - (xCenter - width / 2), width),
+                    height: Math.min(1 - (yCenter - height / 2), height),
+                    score: maxScore,
+                    class: className,
+                    classId: classId
+                });
+            }
         }
     }
     
@@ -348,40 +364,6 @@ function calculateIoU(box1, box2) {
     return intersection / union;
 }
 
-// Update score based on detections
-function updateScore(detections) {
-    // Create unique ID for each detection based on position and class
-    const currentFrame = new Set();
-    
-    detections.forEach(det => {
-        const id = `${det.class}_${Math.round(det.x * 100)}_${Math.round(det.y * 100)}`;
-        currentFrame.add(id);
-        
-        // If this is a new detection, add points
-        if (!gameState.detectedObjects.has(id)) {
-            gameState.detectedObjects.add(id);
-            gameState.currentScore += CONFIG.pointsPerObject;
-            document.getElementById('currentScore').textContent = gameState.currentScore;
-            
-            // Add score animation
-            const scoreElement = document.getElementById('currentScore');
-            scoreElement.style.animation = 'scoreUp 0.3s ease';
-            setTimeout(() => {
-                scoreElement.style.animation = '';
-            }, 300);
-        }
-    });
-    
-    // Clean up old detections that are no longer visible
-    const toRemove = [];
-    gameState.detectedObjects.forEach(id => {
-        if (!currentFrame.has(id)) {
-            toRemove.push(id);
-        }
-    });
-    toRemove.forEach(id => gameState.detectedObjects.delete(id));
-}
-
 // Draw detections on canvas
 function drawDetections(detections) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -408,8 +390,8 @@ function drawDetections(detections) {
         ctx.lineWidth = 3;
         ctx.strokeRect(x, y, width, height);
         
-        // Draw label background with "+2" points
-        const label = `${detection.class} +${CONFIG.pointsPerObject}`;
+        // Draw label background
+        const label = `${detection.class} ${Math.round(detection.score * 100)}%`;
         ctx.font = 'bold 16px Arial';
         const textWidth = ctx.measureText(label).width;
         const textHeight = 20;
@@ -428,15 +410,15 @@ function updateInfoCard(detections) {
     const infoCard = document.getElementById('infoCard');
     
     if (detections.length === 0) {
-        infoCard.innerHTML = '<p>Point camera at recyclables</p>';
+        const objectNames = {
+            'can': 'cans',
+            'paper': 'paper',
+            'plastic-bottle': 'bottles'
+        };
+        const name = objectNames[gameState.selectedObject] || 'objects';
+        infoCard.innerHTML = `<p>Point camera at ${name}</p>`;
         return;
     }
-    
-    // Count objects by type
-    const counts = {};
-    detections.forEach(det => {
-        counts[det.class] = (counts[det.class] || 0) + 1;
-    });
     
     const emojis = {
         'can': '🥫',
@@ -445,39 +427,70 @@ function updateInfoCard(detections) {
     };
     
     const totalCount = detections.length;
-    const totalPoints = totalCount * CONFIG.pointsPerObject;
+    const emoji = emojis[gameState.selectedObject] || '♻️';
+    const displayName = gameState.selectedObject === 'plastic-bottle' ? 'bottle' : gameState.selectedObject;
     
-    let html = `<p style="margin-bottom: 0.5rem;">${totalCount} ${totalCount === 1 ? 'object' : 'objects'} detected (+${totalPoints} pts)</p>`;
-    html += '<div>';
-    for (const [className, count] of Object.entries(counts)) {
-        const emoji = emojis[className] || '♻️';
-        const displayName = className === 'plastic-bottle' ? 'bottle' : className;
-        html += `<span>${emoji} ${displayName}: ${count}</span>`;
-    }
-    html += '</div>';
+    let html = `<p style="margin-bottom: 0.5rem;">${emoji} ${totalCount} ${displayName}${totalCount > 1 ? 's' : ''} detected</p>`;
     
     infoCard.innerHTML = html;
 }
 
 // Setup event listeners
 function setupEventListeners() {
-    // Start game button
-    document.getElementById('startGameBtn').addEventListener('click', startGame);
+    // Object selection buttons
+    document.querySelectorAll('.selection-btn[data-object]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            gameState.selectedObject = btn.dataset.object;
+            showScreen('difficulty');
+        });
+    });
     
-    // Back to main from welcome
+    // Difficulty selection buttons
+    document.querySelectorAll('.difficulty-btn[data-difficulty]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            gameState.difficulty = btn.dataset.difficulty;
+            gameState.maxTime = CONFIG.difficulties[gameState.difficulty];
+            startGame();
+        });
+    });
+    
+    // Back to main from object selection
     document.getElementById('backToMainBtn').addEventListener('click', () => {
         window.location.href = 'index.html';
     });
     
+    // Back to object selection from difficulty
+    document.getElementById('backToObjectBtn').addEventListener('click', () => {
+        showScreen('objectSelection');
+    });
+    
+    // Finish button during gameplay
+    document.getElementById('finishBtn').addEventListener('click', () => {
+        if (confirm('Are you sure you want to finish the game?')) {
+            endGame(false); // false indicates user finished early
+        }
+    });
+    
     // Exit game during gameplay
     document.getElementById('exitGameBtn').addEventListener('click', () => {
-        if (confirm('Are you sure you want to exit the game?')) {
-            endGame();
+        if (confirm('Are you sure you want to exit the game? You will return to the main menu.')) {
+            stopCamera();
+            if (gameState.timerInterval) {
+                clearInterval(gameState.timerInterval);
+                gameState.timerInterval = null;
+            }
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+            window.location.href = 'index.html';
         }
     });
     
     // Replay button
-    document.getElementById('replayBtn').addEventListener('click', startGame);
+    document.getElementById('replayBtn').addEventListener('click', () => {
+        showScreen('objectSelection');
+    });
     
     // Exit to main from end screen
     document.getElementById('exitToMainBtn').addEventListener('click', () => {
@@ -501,6 +514,8 @@ document.addEventListener('visibilitychange', () => {
             detectFrame();
         }
         if (gameState.isGameActive && !gameState.timerInterval) {
+            // Recalculate start time based on elapsed time
+            gameState.startTime = Date.now() - (gameState.elapsedTime * 1000);
             startTimer();
         }
     }
