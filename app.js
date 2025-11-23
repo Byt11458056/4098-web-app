@@ -6,7 +6,11 @@ const CONFIG = {
     iouThreshold: 0.45,
     maxDetections: 100,
     classNames: ['can', 'can', 'paper', 'plastic-bottle'], // metal mapped to can
-    displayNames: ['can', 'paper', 'plastic-bottle'] // For UI display
+    difficulties: {
+        easy: { time: 120, name: 'Easy' },
+        normal: { time: 90, name: 'Normal' },
+        hard: { time: 60, name: 'Hard' }
+    }
 };
 
 // Global variables
@@ -15,10 +19,22 @@ let video = null;
 let canvas = null;
 let ctx = null;
 let animationId = null;
-let isDetecting = true;
+let isDetecting = false;
 let currentStream = null;
-let facingMode = 'environment'; // 'user' for front, 'environment' for back
-let activeFilters = new Set(['can']); // Start with "can" selected
+let facingMode = 'environment';
+
+// Game state
+let gameState = {
+    phase: 'difficulty-selection', // 'difficulty-selection', 'target-display', 'playing', 'ended'
+    difficulty: null,
+    targetScore: 0,
+    currentScore: 0,
+    maxTime: 0,
+    elapsedTime: 0,
+    timerInterval: null,
+    startTime: 0,
+    detectedObjects: new Set() // Track unique detections to prevent double counting
+};
 
 // Initialize app
 async function init() {
@@ -26,7 +42,7 @@ async function init() {
     canvas = document.getElementById('canvas');
     ctx = canvas.getContext('2d');
     
-    // Set up event listeners
+    // Setup event listeners
     setupEventListeners();
     
     // Load model
@@ -38,8 +54,8 @@ async function init() {
     // Hide loading overlay
     document.getElementById('loadingOverlay').classList.add('hidden');
     
-    // Start detection loop
-    detectFrame();
+    // Show difficulty selection
+    showPhase('difficulty-selection');
 }
 
 // Load TensorFlow.js model
@@ -95,16 +111,149 @@ async function startCamera() {
     }
 }
 
-// Switch between front and back camera
-async function switchCamera() {
-    facingMode = facingMode === 'environment' ? 'user' : 'environment';
-    await startCamera();
+// Stop camera
+function stopCamera() {
+    if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+        currentStream = null;
+    }
+    if (video) {
+        video.srcObject = null;
+    }
+}
+
+// Show phase
+function showPhase(phase) {
+    gameState.phase = phase;
+    
+    // Hide all overlays
+    document.getElementById('difficultyHeader').classList.add('hidden');
+    document.getElementById('targetScoreOverlay').classList.add('hidden');
+    document.getElementById('gameHud').classList.add('hidden');
+    document.getElementById('declareFinishContainer').classList.add('hidden');
+    document.getElementById('endScreen').classList.add('hidden');
+    
+    // Show appropriate overlay
+    switch(phase) {
+        case 'difficulty-selection':
+            document.getElementById('difficultyHeader').classList.remove('hidden');
+            break;
+        case 'target-display':
+            document.getElementById('targetScoreOverlay').classList.remove('hidden');
+            break;
+        case 'playing':
+            document.getElementById('gameHud').classList.remove('hidden');
+            document.getElementById('declareFinishContainer').classList.remove('hidden');
+            break;
+        case 'ended':
+            document.getElementById('endScreen').classList.remove('hidden');
+            break;
+    }
+}
+
+// Handle difficulty selection
+function selectDifficulty(difficulty) {
+    gameState.difficulty = difficulty;
+    gameState.maxTime = CONFIG.difficulties[difficulty].time;
+    
+    // Generate random target score (4-9)
+    gameState.targetScore = Math.floor(Math.random() * 6) + 4;
+    
+    // Update UI
+    document.getElementById('targetScore').textContent = gameState.targetScore;
+    
+    // Show target score overlay
+    showPhase('target-display');
+}
+
+// Start game
+function startGame() {
+    // Reset game state
+    gameState.currentScore = 0;
+    gameState.elapsedTime = 0;
+    gameState.startTime = Date.now();
+    gameState.detectedObjects.clear();
+    
+    // Update HUD
+    document.getElementById('hudTarget').textContent = gameState.targetScore;
+    document.getElementById('hudScore').textContent = '0';
+    document.getElementById('hudTimer').textContent = '0s';
+    
+    // Show playing phase
+    showPhase('playing');
+    
+    // Start detection
+    isDetecting = true;
+    detectFrame();
+    
+    // Start timer
+    startTimer();
+}
+
+// Start timer (counts up)
+function startTimer() {
+    gameState.timerInterval = setInterval(() => {
+        gameState.elapsedTime = Math.floor((Date.now() - gameState.startTime) / 1000);
+        document.getElementById('hudTimer').textContent = gameState.elapsedTime + 's';
+        
+        // Warning when approaching max time
+        const timerElement = document.getElementById('hudTimer');
+        if (gameState.elapsedTime >= gameState.maxTime - 10 && gameState.elapsedTime < gameState.maxTime) {
+            timerElement.style.color = '#ff9800';
+        }
+        
+        // Auto-end game when time runs out
+        if (gameState.elapsedTime >= gameState.maxTime) {
+            endGame(true); // true indicates time ran out
+        }
+    }, 1000);
+}
+
+// End game
+function endGame(timeRanOut = false) {
+    gameState.phase = 'ended';
+    isDetecting = false;
+    
+    // Stop timer
+    if (gameState.timerInterval) {
+        clearInterval(gameState.timerInterval);
+        gameState.timerInterval = null;
+    }
+    
+    // Stop detection loop
+    if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+    }
+    
+    // Update end screen
+    document.getElementById('finalTarget').textContent = gameState.targetScore;
+    document.getElementById('finalScore').textContent = gameState.currentScore;
+    document.getElementById('finalTime').textContent = gameState.elapsedTime + 's';
+    
+    // Determine result message
+    const resultMessage = document.getElementById('resultMessage');
+    if (timeRanOut) {
+        resultMessage.textContent = '⏰ Time\'s up! Score: ' + gameState.currentScore + '/' + gameState.targetScore;
+        resultMessage.style.color = '#FF9800';
+    } else if (gameState.currentScore >= gameState.targetScore) {
+        resultMessage.textContent = '🎉 Success! You reached the target score!';
+        resultMessage.style.color = '#4CAF50';
+    } else {
+        resultMessage.textContent = '👍 Good try! Score: ' + gameState.currentScore + '/' + gameState.targetScore;
+        resultMessage.style.color = '#2196F3';
+    }
+    
+    // Show end screen
+    showPhase('ended');
 }
 
 // Main detection loop
 async function detectFrame() {
-    if (!isDetecting || !model || video.readyState !== 4) {
-        animationId = requestAnimationFrame(detectFrame);
+    if (!isDetecting || !model || video.readyState !== 4 || gameState.phase !== 'playing') {
+        if (gameState.phase === 'playing') {
+            animationId = requestAnimationFrame(detectFrame);
+        }
         return;
     }
     
@@ -129,6 +278,9 @@ async function detectFrame() {
         // Process predictions
         const detections = processOutput(predictions);
         
+        // Update score based on detections
+        updateScore(detections);
+        
         // Draw results
         drawDetections(detections);
         
@@ -145,20 +297,14 @@ async function detectFrame() {
 // Process model output (YOLOv8 format)
 function processOutput(output) {
     const detections = [];
-    
-    // YOLOv8 TFLite output shape: [1, 8, 2100]
-    // Where 8 = 4 (bbox: x, y, w, h) + 4 (class scores)
     const numDetections = 2100;
     
     for (let i = 0; i < numDetections; i++) {
-        // Extract bbox and scores
-        // Output is transposed, so we need to access it correctly
         const xCenter = output[i] / CONFIG.inputSize;
         const yCenter = output[numDetections + i] / CONFIG.inputSize;
         const width = output[2 * numDetections + i] / CONFIG.inputSize;
         const height = output[3 * numDetections + i] / CONFIG.inputSize;
         
-        // Get class scores (4 classes)
         let maxScore = 0;
         let classId = 0;
         for (let j = 0; j < CONFIG.classNames.length; j++) {
@@ -169,26 +315,21 @@ function processOutput(output) {
             }
         }
         
-        // Filter by confidence threshold
         if (maxScore > CONFIG.scoreThreshold) {
             const className = CONFIG.classNames[classId];
             
-            // Filter by active filters (can and metal are both shown as "can")
-            if (activeFilters.has(className)) {
-                detections.push({
-                    x: Math.max(0, xCenter - width / 2),
-                    y: Math.max(0, yCenter - height / 2),
-                    width: Math.min(1 - (xCenter - width / 2), width),
-                    height: Math.min(1 - (yCenter - height / 2), height),
-                    score: maxScore,
-                    class: className,
-                    classId: classId
-                });
-            }
+            detections.push({
+                x: Math.max(0, xCenter - width / 2),
+                y: Math.max(0, yCenter - height / 2),
+                width: Math.min(1 - (xCenter - width / 2), width),
+                height: Math.min(1 - (yCenter - height / 2), height),
+                score: maxScore,
+                class: className,
+                classId: classId
+            });
         }
     }
     
-    // Apply NMS
     return applyNMS(detections);
 }
 
@@ -196,7 +337,6 @@ function processOutput(output) {
 function applyNMS(detections) {
     if (detections.length === 0) return [];
     
-    // Sort by score
     detections.sort((a, b) => b.score - a.score);
     
     const selected = [];
@@ -235,12 +375,33 @@ function calculateIoU(box1, box2) {
     return intersection / union;
 }
 
+// Update score based on detections
+function updateScore(detections) {
+    // Count unique objects detected
+    detections.forEach(detection => {
+        const objectKey = `${detection.class}_${Math.floor(detection.x * 100)}_${Math.floor(detection.y * 100)}`;
+        
+        if (!gameState.detectedObjects.has(objectKey)) {
+            gameState.detectedObjects.add(objectKey);
+            gameState.currentScore++;
+            
+            // Update HUD
+            document.getElementById('hudScore').textContent = gameState.currentScore;
+            
+            // Animate score update
+            const scoreElement = document.getElementById('hudScore');
+            scoreElement.style.animation = 'scoreUp 0.3s ease';
+            setTimeout(() => {
+                scoreElement.style.animation = '';
+            }, 300);
+        }
+    });
+}
+
 // Draw detections on canvas
 function drawDetections(detections) {
-    // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Define colors for each class
     const colors = {
         'can': '#FF6B6B',
         'paper': '#45B7D1',
@@ -278,11 +439,14 @@ function drawDetections(detections) {
     });
 }
 
-// Update detection count (removed - now shown in info card only)
-
 // Update info card
 function updateInfoCard(detections) {
     const infoCard = document.getElementById('infoCard');
+    
+    if (gameState.phase !== 'playing') {
+        infoCard.innerHTML = '<p>Point camera at recyclables</p>';
+        return;
+    }
     
     if (detections.length === 0) {
         infoCard.innerHTML = '<p>Point camera at recyclables</p>';
@@ -317,55 +481,55 @@ function updateInfoCard(detections) {
 
 // Setup event listeners
 function setupEventListeners() {
-    // Game mode button - navigate to main page
-    document.getElementById('gameModeBtn').addEventListener('click', () => {
-        window.location.href = 'index.html';
+    // Difficulty buttons
+    document.querySelectorAll('.difficulty-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const difficulty = btn.dataset.difficulty;
+            selectDifficulty(difficulty);
+        });
     });
     
-    // Switch camera button
-    document.getElementById('switchCamera').addEventListener('click', switchCamera);
+    // Start game button
+    document.getElementById('startGameBtn').addEventListener('click', () => {
+        startGame();
+    });
     
-    // Toggle detection button
-    document.getElementById('toggleDetection').addEventListener('click', () => {
-        isDetecting = !isDetecting;
-        const toggleIcon = document.getElementById('toggleIcon');
-        const toggleText = document.getElementById('toggleText');
-        
-        if (isDetecting) {
-            toggleIcon.textContent = '⏸';
-            toggleText.textContent = 'Pause';
-        } else {
-            toggleIcon.textContent = '▶';
-            toggleText.textContent = 'Resume';
+    // Declare finish button
+    document.getElementById('declareFinishBtn').addEventListener('click', () => {
+        if (confirm('Are you sure you want to finish the game?')) {
+            endGame(false);
         }
     });
     
-    // Filter buttons (exclusive selection - only one active at a time)
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const filterClass = btn.dataset.class;
-            
-            // Deselect all filters first
-            activeFilters.clear();
-            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-            
-            // Select only the clicked filter
-            activeFilters.add(filterClass);
-            btn.classList.add('active');
-        });
+    // Play again button
+    document.getElementById('playAgainBtn').addEventListener('click', () => {
+        // Reset and show difficulty selection
+        gameState.detectedObjects.clear();
+        gameState.currentScore = 0;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        showPhase('difficulty-selection');
     });
 }
 
-// Handle visibility change (save battery when tab is not visible)
+// Handle visibility change
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
         if (animationId) {
             cancelAnimationFrame(animationId);
             animationId = null;
         }
+        if (gameState.phase === 'playing' && gameState.timerInterval) {
+            clearInterval(gameState.timerInterval);
+            gameState.timerInterval = null;
+        }
     } else {
-        if (!animationId && isDetecting) {
+        if (!animationId && isDetecting && gameState.phase === 'playing') {
             detectFrame();
+        }
+        if (gameState.phase === 'playing' && !gameState.timerInterval) {
+            // Recalculate start time based on elapsed time
+            gameState.startTime = Date.now() - (gameState.elapsedTime * 1000);
+            startTimer();
         }
     }
 });
@@ -376,4 +540,3 @@ if (document.readyState === 'loading') {
 } else {
     init();
 }
-
