@@ -27,13 +27,10 @@ let facingMode = 'environment';
 let gameState = {
     phase: 'difficulty-selection', // 'difficulty-selection', 'target-display', 'playing', 'ended'
     difficulty: null,
-    targetScore: 0,
-    currentScore: 0,
     maxTime: 0,
     elapsedTime: 0,
     timerInterval: null,
-    startTime: 0,
-    detectedObjects: new Set() // Track unique detections to prevent double counting
+    startTime: 0
 };
 
 // Initialize app
@@ -156,27 +153,17 @@ function selectDifficulty(difficulty) {
     gameState.difficulty = difficulty;
     gameState.maxTime = CONFIG.difficulties[difficulty].time;
     
-    // Generate random target score (4-9)
-    gameState.targetScore = Math.floor(Math.random() * 6) + 4;
-    
-    // Update UI
-    document.getElementById('targetScore').textContent = gameState.targetScore;
-    
-    // Show target score overlay
+    // Show start game overlay
     showPhase('target-display');
 }
 
 // Start game
 function startGame() {
     // Reset game state
-    gameState.currentScore = 0;
     gameState.elapsedTime = 0;
     gameState.startTime = Date.now();
-    gameState.detectedObjects.clear();
     
     // Update HUD
-    document.getElementById('hudTarget').textContent = gameState.targetScore;
-    document.getElementById('hudScore').textContent = '0';
     document.getElementById('hudTimer').textContent = '0s';
     
     // Show playing phase
@@ -227,21 +214,25 @@ function endGame(timeRanOut = false) {
     }
     
     // Update end screen
-    document.getElementById('finalTarget').textContent = gameState.targetScore;
-    document.getElementById('finalScore').textContent = gameState.currentScore;
     document.getElementById('finalTime').textContent = gameState.elapsedTime + 's';
     
     // Determine result message
     const resultMessage = document.getElementById('resultMessage');
     if (timeRanOut) {
-        resultMessage.textContent = '⏰ Time\'s up! Score: ' + gameState.currentScore + '/' + gameState.targetScore;
+        resultMessage.textContent = '⏰ Time\'s up! You used all ' + gameState.maxTime + ' seconds!';
         resultMessage.style.color = '#FF9800';
-    } else if (gameState.currentScore >= gameState.targetScore) {
-        resultMessage.textContent = '🎉 Success! You reached the target score!';
-        resultMessage.style.color = '#4CAF50';
     } else {
-        resultMessage.textContent = '👍 Good try! Score: ' + gameState.currentScore + '/' + gameState.targetScore;
-        resultMessage.style.color = '#2196F3';
+        const percentage = (gameState.elapsedTime / gameState.maxTime) * 100;
+        if (percentage < 50) {
+            resultMessage.textContent = '🌟 Amazing speed! Finished in ' + gameState.elapsedTime + 's!';
+            resultMessage.style.color = '#4CAF50';
+        } else if (percentage < 80) {
+            resultMessage.textContent = '👍 Good job! Finished in ' + gameState.elapsedTime + 's!';
+            resultMessage.style.color = '#2196F3';
+        } else {
+            resultMessage.textContent = '✓ Complete! Finished in ' + gameState.elapsedTime + 's!';
+            resultMessage.style.color = '#FF9800';
+        }
     }
     
     // Show end screen
@@ -277,9 +268,6 @@ async function detectFrame() {
         
         // Process predictions
         const detections = processOutput(predictions);
-        
-        // Update score based on detections
-        updateScore(detections);
         
         // Draw results
         drawDetections(detections);
@@ -373,29 +361,6 @@ function calculateIoU(box1, box2) {
     const union = area1 + area2 - intersection;
     
     return intersection / union;
-}
-
-// Update score based on detections
-function updateScore(detections) {
-    // Count unique objects detected
-    detections.forEach(detection => {
-        const objectKey = `${detection.class}_${Math.floor(detection.x * 100)}_${Math.floor(detection.y * 100)}`;
-        
-        if (!gameState.detectedObjects.has(objectKey)) {
-            gameState.detectedObjects.add(objectKey);
-            gameState.currentScore++;
-            
-            // Update HUD
-            document.getElementById('hudScore').textContent = gameState.currentScore;
-            
-            // Animate score update
-            const scoreElement = document.getElementById('hudScore');
-            scoreElement.style.animation = 'scoreUp 0.3s ease';
-            setTimeout(() => {
-                scoreElement.style.animation = '';
-            }, 300);
-        }
-    });
 }
 
 // Draw detections on canvas
@@ -504,8 +469,6 @@ function setupEventListeners() {
     // Play again button
     document.getElementById('playAgainBtn').addEventListener('click', () => {
         // Reset and show difficulty selection
-        gameState.detectedObjects.clear();
-        gameState.currentScore = 0;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         showPhase('difficulty-selection');
     });

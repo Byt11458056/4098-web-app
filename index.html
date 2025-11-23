@@ -37,11 +37,10 @@
                 </div>
             </div>
 
-            <!-- Target Score Display -->
+            <!-- Start Game Display -->
             <div class="target-score-overlay hidden" id="targetScoreOverlay">
                 <div class="target-score-card">
-                    <div class="target-score-title">Target Score</div>
-                    <div class="target-score-value" id="targetScore">5</div>
+                    <div class="target-score-title">Ready to Start?</div>
                     <button class="start-game-btn" id="startGameBtn">
                         🎮 Start Game
                     </button>
@@ -50,14 +49,6 @@
 
             <!-- Game HUD (Hidden initially) -->
             <div class="game-hud hidden" id="gameHud">
-                <div class="hud-item">
-                    <div class="hud-label">Target</div>
-                    <div class="hud-value target" id="hudTarget">5</div>
-                </div>
-                <div class="hud-item">
-                    <div class="hud-label">Score</div>
-                    <div class="hud-value score" id="hudScore">0</div>
-                </div>
                 <div class="hud-item">
                     <div class="hud-label">Time</div>
                     <div class="hud-value timer" id="hudTimer">0s</div>
@@ -84,14 +75,6 @@
             <div class="game-content">
                 <h1 class="game-title">🎉 Game Complete!</h1>
                 <div class="game-results">
-                    <div class="result-item">
-                        <div class="result-label">Target Score</div>
-                        <div class="result-value-text" id="finalTarget">5</div>
-                    </div>
-                    <div class="result-item">
-                        <div class="result-label">Your Score</div>
-                        <div class="result-value-text" id="finalScore">0</div>
-                    </div>
                     <div class="result-item highlight">
                         <div class="result-label">Time Used</div>
                         <div class="result-value" id="finalTime">0s</div>
