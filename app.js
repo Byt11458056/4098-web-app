@@ -317,9 +317,9 @@ function updateInfoCard(detections) {
 
 // Setup event listeners
 function setupEventListeners() {
-    // Game mode button
+    // Game mode button - navigate to main page
     document.getElementById('gameModeBtn').addEventListener('click', () => {
-        window.location.href = 'game.html';
+        window.location.href = 'index.html';
     });
     
     // Switch camera button

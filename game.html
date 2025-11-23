@@ -12,22 +12,52 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- Welcome Screen -->
-        <div class="game-screen" id="welcomeScreen">
+        <!-- Object Selection Screen -->
+        <div class="game-screen" id="objectSelectionScreen">
             <div class="game-content">
                 <h1 class="game-title">🎮 Recycle Game</h1>
-                <p class="game-description">Detect recyclables to score points!</p>
-                <div class="game-info-box">
-                    <h3>How to Play:</h3>
-                    <ul>
-                        <li>🥫 Can = 2 points</li>
-                        <li>📄 Paper = 2 points</li>
-                        <li>🍾 Bottle = 2 points</li>
-                    </ul>
-                    <p class="game-duration">⏱️ Duration: 120 seconds</p>
+                <p class="game-description">Select the object type to detect:</p>
+                <div class="selection-buttons">
+                    <button class="selection-btn" data-object="can">
+                        <span class="selection-emoji">🥫</span>
+                        <span class="selection-label">Can</span>
+                    </button>
+                    <button class="selection-btn" data-object="paper">
+                        <span class="selection-emoji">📄</span>
+                        <span class="selection-label">Paper</span>
+                    </button>
+                    <button class="selection-btn" data-object="plastic-bottle">
+                        <span class="selection-emoji">🍾</span>
+                        <span class="selection-label">Plastic Bottle</span>
+                    </button>
                 </div>
-                <button class="game-start-btn" id="startGameBtn">Start Game</button>
-                <button class="game-back-btn" id="backToMainBtn">Back to Main</button>
+                <button class="game-back-btn" id="backToMainBtn">🏠 Back to Main</button>
+            </div>
+        </div>
+
+        <!-- Difficulty Selection Screen -->
+        <div class="game-screen hidden" id="difficultyScreen">
+            <div class="game-content">
+                <h1 class="game-title">⚙️ Select Difficulty</h1>
+                <p class="game-description">Choose your challenge level:</p>
+                <div class="selection-buttons">
+                    <button class="selection-btn difficulty-btn" data-difficulty="easy">
+                        <span class="selection-emoji">😊</span>
+                        <span class="selection-label">Easy</span>
+                        <span class="selection-time">120 seconds</span>
+                    </button>
+                    <button class="selection-btn difficulty-btn" data-difficulty="normal">
+                        <span class="selection-emoji">😎</span>
+                        <span class="selection-label">Normal</span>
+                        <span class="selection-time">90 seconds</span>
+                    </button>
+                    <button class="selection-btn difficulty-btn" data-difficulty="hard">
+                        <span class="selection-emoji">🔥</span>
+                        <span class="selection-label">Hard</span>
+                        <span class="selection-time">60 seconds</span>
+                    </button>
+                </div>
+                <button class="game-back-btn" id="backToObjectBtn">← Back</button>
             </div>
         </div>
 
@@ -44,17 +74,24 @@
                 <!-- Game HUD -->
                 <div class="game-hud">
                     <div class="hud-item">
-                        <div class="hud-label">Target</div>
-                        <div class="hud-value target" id="targetScore">10</div>
+                        <div class="hud-label">Detecting</div>
+                        <div class="hud-value target" id="detectedType">Can</div>
                     </div>
                     <div class="hud-item">
-                        <div class="hud-label">Score</div>
-                        <div class="hud-value score" id="currentScore">0</div>
+                        <div class="hud-label">Difficulty</div>
+                        <div class="hud-value score" id="difficulty">Easy</div>
                     </div>
                     <div class="hud-item">
                         <div class="hud-label">Time</div>
-                        <div class="hud-value timer" id="timer">120</div>
+                        <div class="hud-value timer" id="timer">0s</div>
                     </div>
+                </div>
+
+                <!-- Finish Button -->
+                <div class="finish-button-container">
+                    <button class="finish-btn" id="finishBtn">
+                        ✓ Declare Finish
+                    </button>
                 </div>
 
                 <!-- Exit Button -->
@@ -72,15 +109,19 @@
         <!-- End Screen -->
         <div class="game-screen hidden" id="endScreen">
             <div class="game-content">
-                <h1 class="game-title">🎉 Game Over!</h1>
+                <h1 class="game-title">🎉 Game Complete!</h1>
                 <div class="game-results">
                     <div class="result-item">
-                        <div class="result-label">Target Score</div>
-                        <div class="result-value" id="finalTarget">10</div>
+                        <div class="result-label">Object Type</div>
+                        <div class="result-value-text" id="finalObjectType">Can</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-label">Difficulty</div>
+                        <div class="result-value-text" id="finalDifficulty">Easy</div>
                     </div>
                     <div class="result-item highlight">
-                        <div class="result-label">Your Score</div>
-                        <div class="result-value" id="finalScore">0</div>
+                        <div class="result-label">Time Used</div>
+                        <div class="result-value" id="finalTime">0s</div>
                     </div>
                     <div class="result-message" id="resultMessage">Great job!</div>
                 </div>
