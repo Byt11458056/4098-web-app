@@ -128,7 +128,7 @@ body {
 /* Info Card (Floating Bottom Center) - Larger and High Contrast */
 .info-overlay {
     position: absolute;
-    bottom: calc(env(safe-area-inset-bottom) + 90px);
+    bottom: calc(env(safe-area-inset-bottom) + 20px);
     left: 50%;
     transform: translateX(-50%);
     z-index: 20;
@@ -724,7 +724,7 @@ body {
 /* Finish Button */
 .finish-button-container {
     position: absolute;
-    bottom: calc(env(safe-area-inset-bottom) + 100px);
+    bottom: calc(env(safe-area-inset-bottom) + 130px);
     left: 50%;
     transform: translateX(-50%);
     z-index: 25;
@@ -827,7 +827,7 @@ body {
     }
 
     .finish-button-container {
-        bottom: calc(env(safe-area-inset-bottom) + 90px);
+        bottom: calc(env(safe-area-inset-bottom) + 120px);
     }
 }
 
@@ -874,6 +874,6 @@ body {
     }
 
     .finish-button-container {
-        bottom: calc(env(safe-area-inset-bottom) + 80px);
+        bottom: calc(env(safe-area-inset-bottom) + 110px);
     }
 }
