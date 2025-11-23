@@ -20,30 +20,47 @@
                 <div class="spinner"></div>
                 <p>Loading model...</p>
             </div>
+
+            <!-- Object Filter -->
+            <div class="filter-overlay" id="objectFilterControls">
+                <div class="filter-title">Detect</div>
+                <button class="filter-btn active" data-filter="all" type="button">♻️ All</button>
+                <button class="filter-btn" data-filter="can" type="button">🥫 Cans</button>
+                <button class="filter-btn" data-filter="paper" type="button">📄 Paper</button>
+                <button class="filter-btn" data-filter="plastic-bottle" type="button">🍾 Bottles</button>
+            </div>
             
             <!-- Difficulty Selection Header -->
             <div class="difficulty-header" id="difficultyHeader">
-                <div class="difficulty-title">Select Difficulty</div>
-                <div class="difficulty-buttons">
-                    <button class="difficulty-btn" data-difficulty="easy">
-                        😊 Easy
-                    </button>
-                    <button class="difficulty-btn" data-difficulty="normal">
-                        😎 Normal
-                    </button>
-                    <button class="difficulty-btn" data-difficulty="hard">
-                        🔥 Hard
-                    </button>
+                <div class="difficulty-select" id="difficultySelectionState">
+                    <div class="difficulty-title">Select Difficulty</div>
+                    <div class="difficulty-buttons">
+                        <button class="difficulty-btn" data-difficulty="easy" type="button">
+                            😊 Easy
+                        </button>
+                        <button class="difficulty-btn" data-difficulty="normal" type="button">
+                            😎 Normal
+                        </button>
+                        <button class="difficulty-btn" data-difficulty="hard" type="button">
+                            🔥 Hard
+                        </button>
+                    </div>
                 </div>
-            </div>
 
-            <!-- Start Game Display -->
-            <div class="target-score-overlay hidden" id="targetScoreOverlay">
-                <div class="target-score-card">
-                    <div class="target-score-title">Ready to Start?</div>
-                    <button class="start-game-btn" id="startGameBtn">
-                        🎮 Start Game
-                    </button>
+                <div class="difficulty-info hidden" id="difficultyInfoState">
+                    <div class="selected-mode-label">Selected Mode</div>
+                    <div class="selected-mode-value" id="selectedModeLabel">Choose a difficulty to begin</div>
+                    <div class="target-row">
+                        <div class="target-details">
+                            <div class="target-label">Target Score</div>
+                            <div class="target-value target-score-value" id="targetScoreValue">--</div>
+                        </div>
+                        <button class="header-start-btn" id="startGameBtn" type="button">Start</button>
+                        <div class="countdown-display hidden" id="countdownDisplay">
+                            <div class="countdown-label">Time Left</div>
+                            <div class="countdown-value" id="headerTimerValue">--</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 

@@ -13,6 +13,19 @@ const CONFIG = {
     }
 };
 
+const OBJECT_DETAILS = {
+    all: { label: 'all objects', short: 'All', emoji: '♻️', singular: 'object', plural: 'objects' },
+    can: { label: 'cans', short: 'Cans', emoji: '🥫', singular: 'can', plural: 'cans' },
+    paper: { label: 'paper items', short: 'Paper', emoji: '📄', singular: 'paper item', plural: 'paper items' },
+    'plastic-bottle': { label: 'bottles', short: 'Bottles', emoji: '🍾', singular: 'bottle', plural: 'bottles' }
+};
+
+const DIFFICULTY_DISPLAY = {
+    easy: '😊 Easy',
+    normal: '😎 Normal',
+    hard: '🔥 Hard'
+};
+
 // Global variables
 let model = null;
 let video = null;
@@ -30,7 +43,9 @@ let gameState = {
     maxTime: 0,
     elapsedTime: 0,
     timerInterval: null,
-    startTime: 0
+    startTime: 0,
+    targetScore: null,
+    objectFilter: 'all'
 };
 
 // Initialize app
@@ -41,6 +56,7 @@ async function init() {
     
     // Setup event listeners
     setupEventListeners();
+    setObjectFilter(gameState.objectFilter);
     
     // Load model
     await loadModel();
@@ -52,7 +68,7 @@ async function init() {
     document.getElementById('loadingOverlay').classList.add('hidden');
     
     // Show difficulty selection
-    showPhase('difficulty-selection');
+    resetToDifficultySelection();
 }
 
 // Load TensorFlow.js model
@@ -123,35 +139,37 @@ function stopCamera() {
 function showPhase(phase) {
     gameState.phase = phase;
     
-    // Hide all overlays
-    document.getElementById('difficultyHeader').classList.add('hidden');
-    document.getElementById('targetScoreOverlay').classList.add('hidden');
-    document.getElementById('gameHud').classList.add('hidden');
-    document.getElementById('declareFinishContainer').classList.add('hidden');
-    document.getElementById('endScreen').classList.add('hidden');
+    const selectionState = document.getElementById('difficultySelectionState');
+    const infoState = document.getElementById('difficultyInfoState');
+    const gameHud = document.getElementById('gameHud');
+    const declareFinishContainer = document.getElementById('declareFinishContainer');
+    const endScreen = document.getElementById('endScreen');
     
-    // Show appropriate overlay
-    switch(phase) {
-        case 'difficulty-selection':
-            document.getElementById('difficultyHeader').classList.remove('hidden');
-            break;
-        case 'target-display':
-            document.getElementById('targetScoreOverlay').classList.remove('hidden');
-            break;
-        case 'playing':
-            document.getElementById('gameHud').classList.remove('hidden');
-            document.getElementById('declareFinishContainer').classList.remove('hidden');
-            break;
-        case 'ended':
-            document.getElementById('endScreen').classList.remove('hidden');
-            break;
+    if (phase === 'difficulty-selection') {
+        selectionState.classList.remove('hidden');
+        infoState.classList.add('hidden');
+        toggleStartCountdown(false);
+    } else if (phase === 'target-display' || phase === 'playing') {
+        selectionState.classList.add('hidden');
+        infoState.classList.remove('hidden');
     }
+    
+    const isPlaying = phase === 'playing';
+    gameHud.classList.toggle('hidden', !isPlaying);
+    declareFinishContainer.classList.toggle('hidden', !isPlaying);
+    endScreen.classList.toggle('hidden', phase !== 'ended');
 }
 
 // Handle difficulty selection
 function selectDifficulty(difficulty) {
     gameState.difficulty = difficulty;
     gameState.maxTime = CONFIG.difficulties[difficulty].time;
+    gameState.targetScore = generateTargetScore();
+    gameState.elapsedTime = 0;
+    gameState.startTime = 0;
+    
+    updateDifficultyInfo();
+    toggleStartCountdown(false);
     
     // Show start game overlay
     showPhase('target-display');
@@ -159,12 +177,18 @@ function selectDifficulty(difficulty) {
 
 // Start game
 function startGame() {
+    if (!gameState.difficulty) {
+        alert('Please select a difficulty before starting the game.');
+        return;
+    }
+    
     // Reset game state
     gameState.elapsedTime = 0;
     gameState.startTime = Date.now();
     
-    // Update HUD
-    document.getElementById('hudTimer').textContent = '0s';
+    // Update HUD and header timer immediately
+    updateTimerDisplays(gameState.maxTime);
+    toggleStartCountdown(true);
     
     // Show playing phase
     showPhase('playing');
@@ -177,20 +201,20 @@ function startGame() {
     startTimer();
 }
 
-// Start timer (counts up)
+// Start timer (counts down)
 function startTimer() {
+    if (gameState.timerInterval) {
+        clearInterval(gameState.timerInterval);
+    }
+    
     gameState.timerInterval = setInterval(() => {
-        gameState.elapsedTime = Math.floor((Date.now() - gameState.startTime) / 1000);
-        document.getElementById('hudTimer').textContent = gameState.elapsedTime + 's';
+        const elapsed = Math.floor((Date.now() - gameState.startTime) / 1000);
+        gameState.elapsedTime = elapsed;
+        const timeRemaining = Math.max(0, gameState.maxTime - elapsed);
         
-        // Warning when approaching max time
-        const timerElement = document.getElementById('hudTimer');
-        if (gameState.elapsedTime >= gameState.maxTime - 10 && gameState.elapsedTime < gameState.maxTime) {
-            timerElement.style.color = '#ff9800';
-        }
+        updateTimerDisplays(timeRemaining);
         
-        // Auto-end game when time runs out
-        if (gameState.elapsedTime >= gameState.maxTime) {
+        if (timeRemaining <= 0) {
             endGame(true); // true indicates time ran out
         }
     }, 1000);
@@ -200,6 +224,7 @@ function startTimer() {
 function endGame(timeRanOut = false) {
     gameState.phase = 'ended';
     isDetecting = false;
+    toggleStartCountdown(false);
     
     // Stop timer
     if (gameState.timerInterval) {
@@ -212,6 +237,12 @@ function endGame(timeRanOut = false) {
         cancelAnimationFrame(animationId);
         animationId = null;
     }
+    
+    // Clear any remaining drawings
+    if (ctx && canvas) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    updateInfoCard([]);
     
     // Update end screen
     document.getElementById('finalTime').textContent = gameState.elapsedTime + 's';
@@ -270,10 +301,11 @@ async function detectFrame() {
         const detections = processOutput(predictions);
         
         // Draw results
-        drawDetections(detections);
+        const filteredDetections = filterDetectionsByObject(detections);
+        drawDetections(filteredDetections);
         
         // Update UI
-        updateInfoCard(detections);
+        updateInfoCard(filteredDetections);
         
     } catch (error) {
         console.error('Detection error:', error);
@@ -319,6 +351,13 @@ function processOutput(output) {
     }
     
     return applyNMS(detections);
+}
+
+function filterDetectionsByObject(detections) {
+    if (gameState.objectFilter === 'all') {
+        return detections;
+    }
+    return detections.filter(det => det.class === gameState.objectFilter);
 }
 
 // Non-Maximum Suppression
@@ -407,45 +446,55 @@ function drawDetections(detections) {
 // Update info card
 function updateInfoCard(detections) {
     const infoCard = document.getElementById('infoCard');
+    const filterMeta = OBJECT_DETAILS[gameState.objectFilter] || OBJECT_DETAILS.all;
     
     if (gameState.phase !== 'playing') {
-        infoCard.innerHTML = '<p>Point camera at recyclables</p>';
+        infoCard.innerHTML = `<p>Ready to detect ${filterMeta.label}</p>`;
         return;
     }
     
     if (detections.length === 0) {
-        infoCard.innerHTML = '<p>Point camera at recyclables</p>';
+        if (gameState.objectFilter === 'all') {
+            infoCard.innerHTML = '<p>Point camera at recyclables</p>';
+        } else {
+            infoCard.innerHTML = `<p>No ${filterMeta.label} detected yet</p>`;
+        }
         return;
     }
     
-    // Count objects by type
-    const counts = {};
-    detections.forEach(det => {
-        counts[det.class] = (counts[det.class] || 0) + 1;
-    });
-    
-    const emojis = {
-        'can': '🥫',
-        'paper': '📄',
-        'plastic-bottle': '🍾'
-    };
+    if (gameState.objectFilter === 'all') {
+        const counts = {};
+        detections.forEach(det => {
+            counts[det.class] = (counts[det.class] || 0) + 1;
+        });
+        
+        const totalCount = detections.length;
+        let html = `<p style="margin-bottom: 0.5rem;">${totalCount} ${totalCount === 1 ? 'object' : 'objects'} detected</p>`;
+        html += '<div>';
+        for (const [className, count] of Object.entries(counts)) {
+            const detail = OBJECT_DETAILS[className] || OBJECT_DETAILS.all;
+            const noun = count === 1 ? detail.singular : detail.plural;
+            html += `<span>${detail.emoji || '♻️'} ${noun}: ${count}</span>`;
+        }
+        html += '</div>';
+        infoCard.innerHTML = html;
+        return;
+    }
     
     const totalCount = detections.length;
-    
-    let html = `<p style="margin-bottom: 0.5rem;">${totalCount} ${totalCount === 1 ? 'object' : 'objects'} detected</p>`;
-    html += '<div>';
-    for (const [className, count] of Object.entries(counts)) {
-        const emoji = emojis[className] || '♻️';
-        const displayName = className === 'plastic-bottle' ? 'bottle' : className;
-        html += `<span>${emoji} ${displayName}: ${count}</span>`;
-    }
-    html += '</div>';
-    
-    infoCard.innerHTML = html;
+    const noun = totalCount === 1 ? filterMeta.singular : filterMeta.plural;
+    infoCard.innerHTML = `<p style="margin-bottom: 0;">${filterMeta.emoji} ${totalCount} ${noun} detected</p>`;
 }
 
 // Setup event listeners
 function setupEventListeners() {
+    // Object filter buttons
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            setObjectFilter(btn.dataset.filter);
+        });
+    });
+    
     // Difficulty buttons
     document.querySelectorAll('.difficulty-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -469,9 +518,139 @@ function setupEventListeners() {
     // Play again button
     document.getElementById('playAgainBtn').addEventListener('click', () => {
         // Reset and show difficulty selection
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        showPhase('difficulty-selection');
+        if (ctx && canvas) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        resetToDifficultySelection();
     });
+}
+
+function toggleStartCountdown(showCountdown) {
+    const startButton = document.getElementById('startGameBtn');
+    const countdownDisplay = document.getElementById('countdownDisplay');
+    const hudTimer = document.getElementById('hudTimer');
+    
+    if (!startButton || !countdownDisplay) {
+        return;
+    }
+    
+    if (showCountdown) {
+        startButton.classList.add('hidden');
+        countdownDisplay.classList.remove('hidden');
+    } else {
+        countdownDisplay.classList.add('hidden');
+        countdownDisplay.classList.remove('warning', 'danger');
+        startButton.classList.remove('hidden');
+        if (hudTimer) {
+            hudTimer.style.color = '#ffffff';
+        }
+    }
+}
+
+function updateTimerDisplays(timeRemaining) {
+    const headerTimer = document.getElementById('headerTimerValue');
+    const hudTimer = document.getElementById('hudTimer');
+    const countdownDisplay = document.getElementById('countdownDisplay');
+    const formatted = formatTime(timeRemaining);
+    
+    if (headerTimer) {
+        headerTimer.textContent = formatted;
+    }
+    if (hudTimer) {
+        hudTimer.textContent = formatted;
+    }
+    
+    if (countdownDisplay) {
+        countdownDisplay.classList.remove('warning', 'danger');
+        if (timeRemaining <= 10 && timeRemaining > 5) {
+            countdownDisplay.classList.add('warning');
+        } else if (timeRemaining <= 5) {
+            countdownDisplay.classList.add('danger');
+        }
+    }
+    
+    if (hudTimer) {
+        if (timeRemaining <= 10 && timeRemaining > 5) {
+            hudTimer.style.color = '#ff9800';
+        } else if (timeRemaining <= 5) {
+            hudTimer.style.color = '#f44336';
+        } else {
+            hudTimer.style.color = '#ffffff';
+        }
+    }
+}
+
+function formatTime(seconds) {
+    const clamped = Math.max(0, Math.floor(seconds));
+    return `${clamped}s`;
+}
+
+function generateTargetScore() {
+    const min = 4;
+    const max = 9;
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function updateDifficultyInfo() {
+    const selectedModeLabel = document.getElementById('selectedModeLabel');
+    const targetScoreValue = document.getElementById('targetScoreValue');
+    const headerTimerValue = document.getElementById('headerTimerValue');
+    const hudTimer = document.getElementById('hudTimer');
+    
+    if (!gameState.difficulty) {
+        if (selectedModeLabel) {
+            selectedModeLabel.textContent = 'Choose a difficulty to begin';
+        }
+        if (targetScoreValue) {
+            targetScoreValue.textContent = '--';
+        }
+        if (headerTimerValue) {
+            headerTimerValue.textContent = '--';
+        }
+        if (hudTimer) {
+            hudTimer.textContent = '0s';
+            hudTimer.style.color = '#ffffff';
+        }
+        return;
+    }
+    
+    if (selectedModeLabel) {
+        selectedModeLabel.textContent = `${DIFFICULTY_DISPLAY[gameState.difficulty] || CONFIG.difficulties[gameState.difficulty].name} Mode`;
+    }
+    if (targetScoreValue) {
+        targetScoreValue.textContent = gameState.targetScore;
+    }
+    if (headerTimerValue) {
+        headerTimerValue.textContent = formatTime(gameState.maxTime);
+    }
+    if (hudTimer) {
+        hudTimer.textContent = formatTime(gameState.maxTime);
+        hudTimer.style.color = '#ffffff';
+    }
+}
+
+function setObjectFilter(filterValue) {
+    const nextFilter = OBJECT_DETAILS[filterValue] ? filterValue : 'all';
+    gameState.objectFilter = nextFilter;
+    
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.filter === nextFilter);
+    });
+    
+    updateInfoCard([]);
+}
+
+function resetToDifficultySelection() {
+    gameState.difficulty = null;
+    gameState.maxTime = 0;
+    gameState.targetScore = null;
+    gameState.elapsedTime = 0;
+    gameState.startTime = 0;
+    
+    toggleStartCountdown(false);
+    updateDifficultyInfo();
+    showPhase('difficulty-selection');
+    updateInfoCard([]);
 }
 
 // Handle visibility change
