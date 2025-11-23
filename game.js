@@ -6,7 +6,8 @@ const CONFIG = {
     iouThreshold: 0.45,
     maxDetections: 100,
     classNames: ['can', 'can', 'paper', 'plastic-bottle'], // metal mapped to can
-    displayNames: ['can', 'paper', 'plastic-bottle'] // For UI display
+    gameDuration: 120, // seconds
+    pointsPerObject: 2
 };
 
 // Global variables
@@ -15,10 +16,37 @@ let video = null;
 let canvas = null;
 let ctx = null;
 let animationId = null;
-let isDetecting = true;
+let isDetecting = false;
 let currentStream = null;
-let facingMode = 'environment'; // 'user' for front, 'environment' for back
-let activeFilters = new Set(['can']); // Start with "can" selected
+let facingMode = 'environment';
+
+// Game state
+let gameState = {
+    targetScore: 0,
+    currentScore: 0,
+    timeRemaining: CONFIG.gameDuration,
+    isGameActive: false,
+    timerInterval: null,
+    detectedObjects: new Set() // Track detected objects to avoid double counting
+};
+
+// Screen management
+const screens = {
+    welcome: document.getElementById('welcomeScreen'),
+    game: document.getElementById('gameScreen'),
+    end: document.getElementById('endScreen')
+};
+
+function showScreen(screenName) {
+    Object.values(screens).forEach(screen => screen.classList.add('hidden'));
+    screens[screenName].classList.remove('hidden');
+}
+
+// Generate random even target score (2, 4, 6, 8, or 10)
+function generateTargetScore() {
+    const evenNumbers = [2, 4, 6, 8, 10];
+    return evenNumbers[Math.floor(Math.random() * evenNumbers.length)];
+}
 
 // Initialize app
 async function init() {
@@ -26,20 +54,11 @@ async function init() {
     canvas = document.getElementById('canvas');
     ctx = canvas.getContext('2d');
     
-    // Set up event listeners
+    // Setup event listeners
     setupEventListeners();
     
-    // Load model
-    await loadModel();
-    
-    // Start camera
-    await startCamera();
-    
-    // Hide loading overlay
-    document.getElementById('loadingOverlay').classList.add('hidden');
-    
-    // Start detection loop
-    detectFrame();
+    // Show welcome screen
+    showScreen('welcome');
 }
 
 // Load TensorFlow.js model
@@ -95,16 +114,120 @@ async function startCamera() {
     }
 }
 
-// Switch between front and back camera
-async function switchCamera() {
-    facingMode = facingMode === 'environment' ? 'user' : 'environment';
+// Stop camera
+function stopCamera() {
+    if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+        currentStream = null;
+    }
+    if (video) {
+        video.srcObject = null;
+    }
+}
+
+// Start game
+async function startGame() {
+    // Generate target score
+    gameState.targetScore = generateTargetScore();
+    gameState.currentScore = 0;
+    gameState.timeRemaining = CONFIG.gameDuration;
+    gameState.isGameActive = true;
+    gameState.detectedObjects.clear();
+    
+    // Update UI
+    document.getElementById('targetScore').textContent = gameState.targetScore;
+    document.getElementById('currentScore').textContent = gameState.currentScore;
+    document.getElementById('timer').textContent = gameState.timeRemaining;
+    
+    // Show game screen
+    showScreen('game');
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+    
+    // Load model if not loaded
+    if (!model) {
+        await loadModel();
+    }
+    
+    // Start camera
     await startCamera();
+    
+    // Hide loading overlay
+    document.getElementById('loadingOverlay').classList.add('hidden');
+    
+    // Start detection
+    isDetecting = true;
+    detectFrame();
+    
+    // Start timer
+    startTimer();
+}
+
+// Start timer
+function startTimer() {
+    gameState.timerInterval = setInterval(() => {
+        gameState.timeRemaining--;
+        document.getElementById('timer').textContent = gameState.timeRemaining;
+        
+        // Add warning animation when time is low
+        if (gameState.timeRemaining <= 10) {
+            document.getElementById('timer').style.color = '#ff4444';
+            document.getElementById('timer').style.animation = 'pulse 0.5s infinite';
+        }
+        
+        // End game when time runs out
+        if (gameState.timeRemaining <= 0) {
+            endGame();
+        }
+    }, 1000);
+}
+
+// End game
+function endGame() {
+    gameState.isGameActive = false;
+    isDetecting = false;
+    
+    // Stop timer
+    if (gameState.timerInterval) {
+        clearInterval(gameState.timerInterval);
+        gameState.timerInterval = null;
+    }
+    
+    // Stop camera
+    stopCamera();
+    
+    // Stop detection loop
+    if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+    }
+    
+    // Update end screen
+    document.getElementById('finalTarget').textContent = gameState.targetScore;
+    document.getElementById('finalScore').textContent = gameState.currentScore;
+    
+    // Determine result message
+    const resultMessage = document.getElementById('resultMessage');
+    if (gameState.currentScore >= gameState.targetScore) {
+        resultMessage.textContent = '🎉 Amazing! You reached the target!';
+        resultMessage.style.color = '#4CAF50';
+    } else if (gameState.currentScore >= gameState.targetScore * 0.7) {
+        resultMessage.textContent = '👍 Great effort! Almost there!';
+        resultMessage.style.color = '#FF9800';
+    } else {
+        resultMessage.textContent = '💪 Keep practicing! Try again!';
+        resultMessage.style.color = '#2196F3';
+    }
+    
+    // Show end screen
+    showScreen('end');
 }
 
 // Main detection loop
 async function detectFrame() {
-    if (!isDetecting || !model || video.readyState !== 4) {
-        animationId = requestAnimationFrame(detectFrame);
+    if (!isDetecting || !model || video.readyState !== 4 || !gameState.isGameActive) {
+        if (gameState.isGameActive) {
+            animationId = requestAnimationFrame(detectFrame);
+        }
         return;
     }
     
@@ -129,6 +252,9 @@ async function detectFrame() {
         // Process predictions
         const detections = processOutput(predictions);
         
+        // Update score based on detections
+        updateScore(detections);
+        
         // Draw results
         drawDetections(detections);
         
@@ -145,20 +271,14 @@ async function detectFrame() {
 // Process model output (YOLOv8 format)
 function processOutput(output) {
     const detections = [];
-    
-    // YOLOv8 TFLite output shape: [1, 8, 2100]
-    // Where 8 = 4 (bbox: x, y, w, h) + 4 (class scores)
     const numDetections = 2100;
     
     for (let i = 0; i < numDetections; i++) {
-        // Extract bbox and scores
-        // Output is transposed, so we need to access it correctly
         const xCenter = output[i] / CONFIG.inputSize;
         const yCenter = output[numDetections + i] / CONFIG.inputSize;
         const width = output[2 * numDetections + i] / CONFIG.inputSize;
         const height = output[3 * numDetections + i] / CONFIG.inputSize;
         
-        // Get class scores (4 classes)
         let maxScore = 0;
         let classId = 0;
         for (let j = 0; j < CONFIG.classNames.length; j++) {
@@ -169,26 +289,20 @@ function processOutput(output) {
             }
         }
         
-        // Filter by confidence threshold
         if (maxScore > CONFIG.scoreThreshold) {
             const className = CONFIG.classNames[classId];
-            
-            // Filter by active filters (can and metal are both shown as "can")
-            if (activeFilters.has(className)) {
-                detections.push({
-                    x: Math.max(0, xCenter - width / 2),
-                    y: Math.max(0, yCenter - height / 2),
-                    width: Math.min(1 - (xCenter - width / 2), width),
-                    height: Math.min(1 - (yCenter - height / 2), height),
-                    score: maxScore,
-                    class: className,
-                    classId: classId
-                });
-            }
+            detections.push({
+                x: Math.max(0, xCenter - width / 2),
+                y: Math.max(0, yCenter - height / 2),
+                width: Math.min(1 - (xCenter - width / 2), width),
+                height: Math.min(1 - (yCenter - height / 2), height),
+                score: maxScore,
+                class: className,
+                classId: classId
+            });
         }
     }
     
-    // Apply NMS
     return applyNMS(detections);
 }
 
@@ -196,7 +310,6 @@ function processOutput(output) {
 function applyNMS(detections) {
     if (detections.length === 0) return [];
     
-    // Sort by score
     detections.sort((a, b) => b.score - a.score);
     
     const selected = [];
@@ -235,12 +348,44 @@ function calculateIoU(box1, box2) {
     return intersection / union;
 }
 
+// Update score based on detections
+function updateScore(detections) {
+    // Create unique ID for each detection based on position and class
+    const currentFrame = new Set();
+    
+    detections.forEach(det => {
+        const id = `${det.class}_${Math.round(det.x * 100)}_${Math.round(det.y * 100)}`;
+        currentFrame.add(id);
+        
+        // If this is a new detection, add points
+        if (!gameState.detectedObjects.has(id)) {
+            gameState.detectedObjects.add(id);
+            gameState.currentScore += CONFIG.pointsPerObject;
+            document.getElementById('currentScore').textContent = gameState.currentScore;
+            
+            // Add score animation
+            const scoreElement = document.getElementById('currentScore');
+            scoreElement.style.animation = 'scoreUp 0.3s ease';
+            setTimeout(() => {
+                scoreElement.style.animation = '';
+            }, 300);
+        }
+    });
+    
+    // Clean up old detections that are no longer visible
+    const toRemove = [];
+    gameState.detectedObjects.forEach(id => {
+        if (!currentFrame.has(id)) {
+            toRemove.push(id);
+        }
+    });
+    toRemove.forEach(id => gameState.detectedObjects.delete(id));
+}
+
 // Draw detections on canvas
 function drawDetections(detections) {
-    // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Define colors for each class
     const colors = {
         'can': '#FF6B6B',
         'paper': '#45B7D1',
@@ -263,8 +408,8 @@ function drawDetections(detections) {
         ctx.lineWidth = 3;
         ctx.strokeRect(x, y, width, height);
         
-        // Draw label background
-        const label = `${detection.class} ${Math.round(detection.score * 100)}%`;
+        // Draw label background with "+2" points
+        const label = `${detection.class} +${CONFIG.pointsPerObject}`;
         ctx.font = 'bold 16px Arial';
         const textWidth = ctx.measureText(label).width;
         const textHeight = 20;
@@ -277,8 +422,6 @@ function drawDetections(detections) {
         ctx.fillText(label, x + 5, y - 8);
     });
 }
-
-// Update detection count (removed - now shown in info card only)
 
 // Update info card
 function updateInfoCard(detections) {
@@ -302,8 +445,9 @@ function updateInfoCard(detections) {
     };
     
     const totalCount = detections.length;
+    const totalPoints = totalCount * CONFIG.pointsPerObject;
     
-    let html = `<p style="margin-bottom: 0.5rem;">${totalCount} ${totalCount === 1 ? 'object' : 'objects'} detected</p>`;
+    let html = `<p style="margin-bottom: 0.5rem;">${totalCount} ${totalCount === 1 ? 'object' : 'objects'} detected (+${totalPoints} pts)</p>`;
     html += '<div>';
     for (const [className, count] of Object.entries(counts)) {
         const emoji = emojis[className] || '♻️';
@@ -317,55 +461,47 @@ function updateInfoCard(detections) {
 
 // Setup event listeners
 function setupEventListeners() {
-    // Game mode button
-    document.getElementById('gameModeBtn').addEventListener('click', () => {
-        window.location.href = 'game.html';
+    // Start game button
+    document.getElementById('startGameBtn').addEventListener('click', startGame);
+    
+    // Back to main from welcome
+    document.getElementById('backToMainBtn').addEventListener('click', () => {
+        window.location.href = 'index.html';
     });
     
-    // Switch camera button
-    document.getElementById('switchCamera').addEventListener('click', switchCamera);
-    
-    // Toggle detection button
-    document.getElementById('toggleDetection').addEventListener('click', () => {
-        isDetecting = !isDetecting;
-        const toggleIcon = document.getElementById('toggleIcon');
-        const toggleText = document.getElementById('toggleText');
-        
-        if (isDetecting) {
-            toggleIcon.textContent = '⏸';
-            toggleText.textContent = 'Pause';
-        } else {
-            toggleIcon.textContent = '▶';
-            toggleText.textContent = 'Resume';
+    // Exit game during gameplay
+    document.getElementById('exitGameBtn').addEventListener('click', () => {
+        if (confirm('Are you sure you want to exit the game?')) {
+            endGame();
         }
     });
     
-    // Filter buttons (exclusive selection - only one active at a time)
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const filterClass = btn.dataset.class;
-            
-            // Deselect all filters first
-            activeFilters.clear();
-            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-            
-            // Select only the clicked filter
-            activeFilters.add(filterClass);
-            btn.classList.add('active');
-        });
+    // Replay button
+    document.getElementById('replayBtn').addEventListener('click', startGame);
+    
+    // Exit to main from end screen
+    document.getElementById('exitToMainBtn').addEventListener('click', () => {
+        window.location.href = 'index.html';
     });
 }
 
-// Handle visibility change (save battery when tab is not visible)
+// Handle visibility change
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
         if (animationId) {
             cancelAnimationFrame(animationId);
             animationId = null;
         }
+        if (gameState.isGameActive && gameState.timerInterval) {
+            clearInterval(gameState.timerInterval);
+            gameState.timerInterval = null;
+        }
     } else {
-        if (!animationId && isDetecting) {
+        if (!animationId && isDetecting && gameState.isGameActive) {
             detectFrame();
+        }
+        if (gameState.isGameActive && !gameState.timerInterval) {
+            startTimer();
         }
     }
 });
@@ -376,4 +512,3 @@ if (document.readyState === 'loading') {
 } else {
     init();
 }
-
