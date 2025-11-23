@@ -133,14 +133,28 @@ async function startGame() {
     
     // Update UI with selected object and difficulty
     const objectEmojis = {
-        'can': '🥫 Can',
-        'paper': '📄 Paper',
-        'plastic-bottle': '🍾 Bottle'
+        'can': '🥫',
+        'paper': '📄',
+        'plastic-bottle': '🍾'
     };
     
-    document.getElementById('detectedType').textContent = objectEmojis[gameState.selectedObject] || gameState.selectedObject;
-    document.getElementById('difficulty').textContent = gameState.difficulty.charAt(0).toUpperCase() + gameState.difficulty.slice(1);
-    document.getElementById('timer').textContent = '0s';
+    const objectNames = {
+        'can': 'Can',
+        'paper': 'Paper',
+        'plastic-bottle': 'Bottle'
+    };
+    
+    const difficultyNames = {
+        'easy': '😊 Easy',
+        'normal': '😎 Normal',
+        'hard': '🔥 Hard'
+    };
+    
+    // Update game info overlay
+    document.getElementById('gameModeDisplay').textContent = difficultyNames[gameState.difficulty];
+    document.getElementById('gameTimerDisplay').textContent = gameState.maxTime + 's';
+    document.getElementById('detectingEmoji').textContent = objectEmojis[gameState.selectedObject];
+    document.getElementById('detectingText').textContent = 'Detecting ' + objectNames[gameState.selectedObject];
     
     // Show game screen
     showScreen('game');
@@ -165,15 +179,25 @@ async function startGame() {
     startTimer();
 }
 
-// Start timer (counts up)
+// Start timer (countdown)
 function startTimer() {
+    const timerDisplay = document.getElementById('gameTimerDisplay');
+    
     gameState.timerInterval = setInterval(() => {
         gameState.elapsedTime = Math.floor((Date.now() - gameState.startTime) / 1000);
-        document.getElementById('timer').textContent = gameState.elapsedTime + 's';
+        const timeRemaining = Math.max(0, gameState.maxTime - gameState.elapsedTime);
         
-        // Warning when approaching max time
-        if (gameState.elapsedTime >= gameState.maxTime - 10 && gameState.elapsedTime < gameState.maxTime) {
-            document.getElementById('timer').style.color = '#ff9800';
+        // Update timer display
+        timerDisplay.textContent = timeRemaining + 's';
+        
+        // Remove all warning classes first
+        timerDisplay.classList.remove('warning', 'danger');
+        
+        // Add warning colors based on time remaining
+        if (timeRemaining <= 10 && timeRemaining > 5) {
+            timerDisplay.classList.add('warning');
+        } else if (timeRemaining <= 5) {
+            timerDisplay.classList.add('danger');
         }
         
         // Auto-end game when time runs out
@@ -442,6 +466,8 @@ function setupEventListeners() {
         btn.addEventListener('click', () => {
             gameState.selectedObject = btn.dataset.object;
             showScreen('difficulty');
+            // Reset mode info section when entering difficulty screen
+            document.getElementById('modeInfoSection').classList.add('hidden');
         });
     });
     
@@ -450,8 +476,25 @@ function setupEventListeners() {
         btn.addEventListener('click', () => {
             gameState.difficulty = btn.dataset.difficulty;
             gameState.maxTime = CONFIG.difficulties[gameState.difficulty];
-            startGame();
+            
+            // Update and show mode info section
+            const difficultyNames = {
+                'easy': '😊 Easy',
+                'normal': '😎 Normal',
+                'hard': '🔥 Hard'
+            };
+            document.getElementById('selectedMode').textContent = difficultyNames[gameState.difficulty];
+            document.getElementById('targetTime').textContent = gameState.maxTime + 's';
+            document.getElementById('modeInfoSection').classList.remove('hidden');
+            
+            // Scroll to the mode info section
+            document.getElementById('modeInfoSection').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         });
+    });
+    
+    // Start game button
+    document.getElementById('startGameBtn').addEventListener('click', () => {
+        startGame();
     });
     
     // Back to main from object selection
@@ -462,6 +505,7 @@ function setupEventListeners() {
     // Back to object selection from difficulty
     document.getElementById('backToObjectBtn').addEventListener('click', () => {
         showScreen('objectSelection');
+        document.getElementById('modeInfoSection').classList.add('hidden');
     });
     
     // Finish button during gameplay

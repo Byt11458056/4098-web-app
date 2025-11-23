@@ -636,57 +636,94 @@ body {
     transform: scale(0.98);
 }
 
-/* Game HUD (Heads-Up Display) */
-.game-hud {
+/* Game Info Overlay */
+.game-info-overlay {
     position: absolute;
     top: calc(env(safe-area-inset-top) + 1rem);
-    left: 0;
-    right: 0;
-    display: flex;
-    justify-content: space-around;
-    padding: 0 1rem;
+    left: 50%;
+    transform: translateX(-50%);
     z-index: 30;
+    width: 90%;
+    max-width: 400px;
 }
 
-.game-hud.hidden {
-    display: none;
-}
-
-.hud-item {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(20px);
-    padding: 0.8rem 1.2rem;
+.game-mode-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 1rem 1.5rem;
     border-radius: 16px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    min-width: 80px;
+    margin-bottom: 0.75rem;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
     text-align: center;
 }
 
-.hud-label {
+.game-mode-label {
     font-size: 0.75rem;
-    color: #666;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 1px;
+    color: rgba(255, 255, 255, 0.8);
     margin-bottom: 0.3rem;
 }
 
-.hud-value {
+.game-mode-value {
     font-size: 1.5rem;
     font-weight: 700;
+    color: white;
+}
+
+.game-timer-header {
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(20px);
+    padding: 1.2rem 1.5rem;
+    border-radius: 16px;
+    border: 3px solid #667eea;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    text-align: center;
+}
+
+.game-timer-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #666;
+    margin-bottom: 0.4rem;
+}
+
+.game-timer-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #667eea;
+    margin-bottom: 0.8rem;
+    transition: color 0.3s;
+}
+
+.game-timer-value.warning {
+    color: #ff9800;
+}
+
+.game-timer-value.danger {
+    color: #f44336;
+    animation: pulse 1s infinite;
+}
+
+.game-detecting-info {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding-top: 0.8rem;
+    border-top: 2px solid rgba(102, 126, 234, 0.2);
+}
+
+.detecting-emoji {
+    font-size: 1.5rem;
+}
+
+.detecting-text {
+    font-size: 1rem;
+    font-weight: 600;
     color: #333;
-}
-
-.hud-value.target {
-    color: #FF9800;
-}
-
-.hud-value.score {
-    color: #4CAF50;
-}
-
-.hud-value.timer {
-    color: #2196F3;
 }
 
 /* Exit Button */
@@ -704,7 +741,7 @@ body {
     cursor: pointer;
     transition: all 0.3s;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    z-index: 30;
+    z-index: 35;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -900,6 +937,67 @@ body {
     font-size: 2.5rem;
 }
 
+/* Mode Info Section */
+.mode-info-section {
+    margin: 2rem 0 1.5rem 0;
+    padding: 0;
+}
+
+.mode-info-section.hidden {
+    display: none;
+}
+
+.mode-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 1.2rem 1.5rem;
+    border-radius: 16px;
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.mode-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: rgba(255, 255, 255, 0.8);
+    margin-bottom: 0.5rem;
+}
+
+.mode-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: white;
+}
+
+.target-info-header {
+    background: rgba(255, 255, 255, 0.95);
+    padding: 1.5rem;
+    border-radius: 16px;
+    border: 3px solid #667eea;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.target-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #666;
+    margin-bottom: 0.5rem;
+}
+
+.target-value {
+    font-size: 3rem;
+    font-weight: 700;
+    color: #667eea;
+    margin-bottom: 1.2rem;
+}
+
+.target-info-header .game-start-btn {
+    margin-bottom: 0;
+}
+
 /* Responsive Adjustments for Game Mode */
 @media (max-width: 480px) {
     .game-title {
@@ -910,17 +1008,43 @@ body {
         padding: 1.5rem;
     }
 
-    .hud-item {
-        padding: 0.6rem 0.8rem;
-        min-width: 70px;
+    .game-info-overlay {
+        width: 92%;
+        max-width: 350px;
     }
 
-    .hud-value {
+    .game-mode-header {
+        padding: 0.8rem 1.2rem;
+        margin-bottom: 0.6rem;
+    }
+
+    .game-mode-label {
+        font-size: 0.7rem;
+    }
+
+    .game-mode-value {
         font-size: 1.2rem;
     }
 
-    .hud-label {
-        font-size: 0.7rem;
+    .game-timer-header {
+        padding: 1rem 1.2rem;
+    }
+
+    .game-timer-label {
+        font-size: 0.75rem;
+    }
+
+    .game-timer-value {
+        font-size: 2rem;
+        margin-bottom: 0.6rem;
+    }
+
+    .detecting-emoji {
+        font-size: 1.2rem;
+    }
+
+    .detecting-text {
+        font-size: 0.9rem;
     }
 
     .game-info-box {
@@ -956,49 +1080,38 @@ body {
         bottom: calc(env(safe-area-inset-bottom) + 120px);
     }
 
-    .difficulty-header {
+    .mode-info-section {
+        margin: 1.5rem 0 1rem 0;
+    }
+
+    .mode-header {
         padding: 1rem 1.2rem;
     }
 
-    .difficulty-title {
-        font-size: 1rem;
+    .mode-label {
+        font-size: 0.8rem;
     }
 
-    .difficulty-buttons {
-        flex-direction: column;
-        gap: 0.5rem;
+    .mode-value {
+        font-size: 1.7rem;
     }
 
-    .difficulty-btn {
-        padding: 0.6rem 1rem;
-        font-size: 0.95rem;
+    .target-info-header {
+        padding: 1.2rem;
     }
 
-    .target-score-card {
-        padding: 2rem 1.5rem;
+    .target-label {
+        font-size: 0.85rem;
     }
 
-    .target-score-title {
-        font-size: 1.3rem;
-    }
-
-    .target-score-value {
-        font-size: 4rem;
+    .target-value {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
     }
 
     .start-game-btn {
         padding: 1rem 1.5rem;
         font-size: 1.2rem;
-    }
-
-    .declare-finish-btn {
-        padding: 0.9rem 1.5rem;
-        font-size: 1rem;
-    }
-
-    .declare-finish-container {
-        right: 0.75rem;
-        bottom: calc(env(safe-area-inset-bottom) + 130px);
     }
 }
 
@@ -1012,6 +1125,46 @@ body {
         margin-bottom: 0.5rem;
     }
 
+    .game-info-overlay {
+        top: calc(env(safe-area-inset-top) + 0.75rem);
+        width: 90%;
+        max-width: 350px;
+    }
+
+    .game-mode-header {
+        padding: 0.7rem 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .game-mode-label {
+        font-size: 0.65rem;
+    }
+
+    .game-mode-value {
+        font-size: 1.1rem;
+    }
+
+    .game-timer-header {
+        padding: 0.9rem 1rem;
+    }
+
+    .game-timer-label {
+        font-size: 0.7rem;
+    }
+
+    .game-timer-value {
+        font-size: 1.8rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .detecting-emoji {
+        font-size: 1rem;
+    }
+
+    .detecting-text {
+        font-size: 0.85rem;
+    }
+
     .game-info-box {
         padding: 1rem;
         margin-bottom: 1rem;
@@ -1020,10 +1173,6 @@ body {
     .game-info-box h3 {
         font-size: 1.1rem;
         margin-bottom: 0.5rem;
-    }
-
-    .hud-item {
-        padding: 0.5rem 0.8rem;
     }
 
     .selection-buttons {
@@ -1048,44 +1197,37 @@ body {
         bottom: calc(env(safe-area-inset-bottom) + 110px);
     }
 
-    .difficulty-header {
+    .mode-info-section {
+        margin: 1rem 0 0.75rem 0;
+    }
+
+    .mode-header {
         padding: 0.8rem 1rem;
     }
 
-    .difficulty-title {
-        font-size: 0.9rem;
-        margin-bottom: 0.6rem;
+    .mode-label {
+        font-size: 0.75rem;
     }
 
-    .difficulty-btn {
-        padding: 0.5rem 0.9rem;
-        font-size: 0.85rem;
+    .mode-value {
+        font-size: 1.5rem;
     }
 
-    .target-score-card {
-        padding: 1.5rem 1.2rem;
+    .target-info-header {
+        padding: 1rem;
     }
 
-    .target-score-title {
-        font-size: 1.2rem;
+    .target-label {
+        font-size: 0.8rem;
     }
 
-    .target-score-value {
-        font-size: 3.5rem;
-        margin: 0.5rem 0 1.5rem 0;
+    .target-value {
+        font-size: 2.2rem;
+        margin-bottom: 0.8rem;
     }
 
     .start-game-btn {
         padding: 0.9rem 1.5rem;
         font-size: 1.1rem;
-    }
-
-    .declare-finish-btn {
-        padding: 0.7rem 1.3rem;
-        font-size: 0.95rem;
-    }
-
-    .declare-finish-container {
-        bottom: calc(env(safe-area-inset-bottom) + 100px);
     }
 }
