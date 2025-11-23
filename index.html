@@ -12,6 +12,37 @@
 </head>
 <body>
     <div class="app-container">
+        <!-- Top Bar 1: Difficulty Selection / Selected Difficulty -->
+        <div class="top-bar-1" id="topBar1">
+            <!-- Initial State: Difficulty Selection -->
+            <div class="difficulty-selection" id="difficultySelection">
+                <div class="difficulty-title">Select Difficulty</div>
+                <div class="difficulty-buttons">
+                    <button class="difficulty-btn" data-difficulty="easy" type="button">😊 Easy</button>
+                    <button class="difficulty-btn" data-difficulty="normal" type="button">😎 Normal</button>
+                    <button class="difficulty-btn" data-difficulty="hard" type="button">🔥 Hard</button>
+                </div>
+            </div>
+            <!-- After Selection: Display Selected Difficulty -->
+            <div class="selected-difficulty hidden" id="selectedDifficulty">
+                <span class="difficulty-label">Difficulty:</span>
+                <span class="difficulty-value" id="selectedDifficultyValue">Easy</span>
+            </div>
+        </div>
+
+        <!-- Top Bar 2: Target Score & Start Button / Timer (Hidden Initially) -->
+        <div class="top-bar-2 hidden" id="topBar2">
+            <div class="target-score-section">
+                <span class="target-label">Target Score:</span>
+                <span class="target-value" id="targetScoreValue">5</span>
+            </div>
+            <button class="start-btn" id="startGameBtn" type="button">▶ Start</button>
+            <div class="countdown-timer hidden" id="countdownTimer">
+                <span class="timer-label">Time:</span>
+                <span class="timer-value" id="timerValue">120s</span>
+            </div>
+        </div>
+
         <!-- Camera View (Fullscreen) -->
         <div class="camera-container">
             <video id="videoElement" autoplay playsinline></video>
@@ -20,71 +51,33 @@
                 <div class="spinner"></div>
                 <p>Loading model...</p>
             </div>
+        </div>
 
-            <!-- Object Filter -->
-            <div class="filter-overlay" id="objectFilterControls">
-                <div class="filter-title">Detect</div>
-                <button class="filter-btn active" data-filter="all" type="button">♻️ All</button>
-                <button class="filter-btn" data-filter="can" type="button">🥫 Cans</button>
-                <button class="filter-btn" data-filter="paper" type="button">📄 Paper</button>
-                <button class="filter-btn" data-filter="plastic-bottle" type="button">🍾 Bottles</button>
-            </div>
-            
-            <!-- Difficulty Selection Header -->
-            <div class="difficulty-header" id="difficultyHeader">
-                <div class="difficulty-select" id="difficultySelectionState">
-                    <div class="difficulty-title">Select Difficulty</div>
-                    <div class="difficulty-buttons">
-                        <button class="difficulty-btn" data-difficulty="easy" type="button">
-                            😊 Easy
-                        </button>
-                        <button class="difficulty-btn" data-difficulty="normal" type="button">
-                            😎 Normal
-                        </button>
-                        <button class="difficulty-btn" data-difficulty="hard" type="button">
-                            🔥 Hard
-                        </button>
-                    </div>
-                </div>
-
-                <div class="difficulty-info hidden" id="difficultyInfoState">
-                    <div class="selected-mode-label">Selected Mode</div>
-                    <div class="selected-mode-value" id="selectedModeLabel">Choose a difficulty to begin</div>
-                    <div class="target-row">
-                        <div class="target-details">
-                            <div class="target-label">Target Score</div>
-                            <div class="target-value target-score-value" id="targetScoreValue">--</div>
-                        </div>
-                        <button class="header-start-btn" id="startGameBtn" type="button">Start</button>
-                        <div class="countdown-display hidden" id="countdownDisplay">
-                            <div class="countdown-label">Time Left</div>
-                            <div class="countdown-value" id="headerTimerValue">--</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Game HUD (Hidden initially) -->
-            <div class="game-hud hidden" id="gameHud">
-                <div class="hud-item">
-                    <div class="hud-label">Time</div>
-                    <div class="hud-value timer" id="hudTimer">0s</div>
-                </div>
-            </div>
-
-            <!-- Declare Finish Button (Floating, Hidden initially) -->
-            <div class="declare-finish-container hidden" id="declareFinishContainer">
-                <button class="declare-finish-btn" id="declareFinishBtn">
-                    ✓ Declare Finish
+        <!-- Bottom Bar (Hidden Initially) -->
+        <div class="bottom-bar hidden" id="bottomBar">
+            <!-- Object Type Filter -->
+            <div class="filter-dropdown-container">
+                <button class="filter-toggle-btn" id="filterToggleBtn" type="button">
+                    <span class="filter-icon" id="filterIcon">♻️</span>
+                    <span class="filter-text" id="filterText">All</span>
+                    <span class="chevron">▲</span>
                 </button>
-            </div>
-
-            <!-- Info Card (Floating Bottom Center) -->
-            <div class="info-overlay">
-                <div class="info-card" id="infoCard">
-                    <p>Point camera at recyclables</p>
+                <div class="filter-dropdown hidden" id="filterDropdown">
+                    <button class="filter-option active" data-filter="all" type="button">♻️ All</button>
+                    <button class="filter-option" data-filter="can" type="button">🥫 Cans</button>
+                    <button class="filter-option" data-filter="paper" type="button">📄 Paper</button>
+                    <button class="filter-option" data-filter="plastic-bottle" type="button">🍾 Bottles</button>
                 </div>
             </div>
+
+            <!-- Object Count Display -->
+            <div class="object-count">
+                <span class="count-value" id="objectCount">0</span>
+                <span class="count-label">detected</span>
+            </div>
+
+            <!-- Declare Finish Button -->
+            <button class="finish-btn" id="declareFinishBtn" type="button">✓ Finish</button>
         </div>
 
         <!-- End Screen -->

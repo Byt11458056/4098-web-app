@@ -7,23 +7,17 @@ const CONFIG = {
     maxDetections: 100,
     classNames: ['can', 'can', 'paper', 'plastic-bottle'], // metal mapped to can
     difficulties: {
-        easy: { time: 120, name: 'Easy' },
-        normal: { time: 90, name: 'Normal' },
-        hard: { time: 60, name: 'Hard' }
+        easy: { time: 120, name: 'Easy', emoji: '😊' },
+        normal: { time: 90, name: 'Normal', emoji: '😎' },
+        hard: { time: 60, name: 'Hard', emoji: '🔥' }
     }
 };
 
 const OBJECT_DETAILS = {
-    all: { label: 'all objects', short: 'All', emoji: '♻️', singular: 'object', plural: 'objects' },
-    can: { label: 'cans', short: 'Cans', emoji: '🥫', singular: 'can', plural: 'cans' },
-    paper: { label: 'paper items', short: 'Paper', emoji: '📄', singular: 'paper item', plural: 'paper items' },
-    'plastic-bottle': { label: 'bottles', short: 'Bottles', emoji: '🍾', singular: 'bottle', plural: 'bottles' }
-};
-
-const DIFFICULTY_DISPLAY = {
-    easy: '😊 Easy',
-    normal: '😎 Normal',
-    hard: '🔥 Hard'
+    all: { label: 'All', emoji: '♻️', singular: 'object', plural: 'objects' },
+    can: { label: 'Cans', emoji: '🥫', singular: 'can', plural: 'cans' },
+    paper: { label: 'Paper', emoji: '📄', singular: 'paper item', plural: 'paper items' },
+    'plastic-bottle': { label: 'Bottles', emoji: '🍾', singular: 'bottle', plural: 'bottles' }
 };
 
 // Global variables
@@ -45,7 +39,8 @@ let gameState = {
     timerInterval: null,
     startTime: 0,
     targetScore: null,
-    objectFilter: 'all'
+    objectFilter: 'all',
+    currentDetections: []
 };
 
 // Initialize app
@@ -56,7 +51,6 @@ async function init() {
     
     // Setup event listeners
     setupEventListeners();
-    setObjectFilter(gameState.objectFilter);
     
     // Load model
     await loadModel();
@@ -67,8 +61,8 @@ async function init() {
     // Hide loading overlay
     document.getElementById('loadingOverlay').classList.add('hidden');
     
-    // Show difficulty selection
-    resetToDifficultySelection();
+    // Show initial state: difficulty selection
+    showPhase('difficulty-selection');
 }
 
 // Load TensorFlow.js model
@@ -139,25 +133,44 @@ function stopCamera() {
 function showPhase(phase) {
     gameState.phase = phase;
     
-    const selectionState = document.getElementById('difficultySelectionState');
-    const infoState = document.getElementById('difficultyInfoState');
-    const gameHud = document.getElementById('gameHud');
-    const declareFinishContainer = document.getElementById('declareFinishContainer');
+    const difficultySelection = document.getElementById('difficultySelection');
+    const selectedDifficulty = document.getElementById('selectedDifficulty');
+    const topBar2 = document.getElementById('topBar2');
+    const bottomBar = document.getElementById('bottomBar');
     const endScreen = document.getElementById('endScreen');
     
     if (phase === 'difficulty-selection') {
-        selectionState.classList.remove('hidden');
-        infoState.classList.add('hidden');
-        toggleStartCountdown(false);
-    } else if (phase === 'target-display' || phase === 'playing') {
-        selectionState.classList.add('hidden');
-        infoState.classList.remove('hidden');
+        // Show: Difficulty selection in top bar 1
+        // Hide: Everything else
+        difficultySelection.classList.remove('hidden');
+        selectedDifficulty.classList.add('hidden');
+        topBar2.classList.add('hidden');
+        bottomBar.classList.add('hidden');
+        endScreen.classList.add('hidden');
+    } else if (phase === 'target-display') {
+        // Show: Selected difficulty in top bar 1, Target score & Start button in top bar 2
+        // Hide: Bottom bar, countdown timer
+        difficultySelection.classList.add('hidden');
+        selectedDifficulty.classList.remove('hidden');
+        topBar2.classList.remove('hidden');
+        document.getElementById('startGameBtn').classList.remove('hidden');
+        document.getElementById('countdownTimer').classList.add('hidden');
+        bottomBar.classList.add('hidden');
+        endScreen.classList.add('hidden');
+    } else if (phase === 'playing') {
+        // Show: Selected difficulty, countdown timer, bottom bar
+        // Hide: Start button
+        difficultySelection.classList.add('hidden');
+        selectedDifficulty.classList.remove('hidden');
+        topBar2.classList.remove('hidden');
+        document.getElementById('startGameBtn').classList.add('hidden');
+        document.getElementById('countdownTimer').classList.remove('hidden');
+        bottomBar.classList.remove('hidden');
+        endScreen.classList.add('hidden');
+    } else if (phase === 'ended') {
+        // Show: End screen
+        endScreen.classList.remove('hidden');
     }
-    
-    const isPlaying = phase === 'playing';
-    gameHud.classList.toggle('hidden', !isPlaying);
-    declareFinishContainer.classList.toggle('hidden', !isPlaying);
-    endScreen.classList.toggle('hidden', phase !== 'ended');
 }
 
 // Handle difficulty selection
@@ -168,10 +181,10 @@ function selectDifficulty(difficulty) {
     gameState.elapsedTime = 0;
     gameState.startTime = 0;
     
-    updateDifficultyInfo();
-    toggleStartCountdown(false);
+    updateDifficultyDisplay();
+    updateTargetScoreDisplay();
     
-    // Show start game overlay
+    // Show target display phase
     showPhase('target-display');
 }
 
@@ -185,10 +198,10 @@ function startGame() {
     // Reset game state
     gameState.elapsedTime = 0;
     gameState.startTime = Date.now();
+    gameState.currentDetections = [];
     
-    // Update HUD and header timer immediately
-    updateTimerDisplays(gameState.maxTime);
-    toggleStartCountdown(true);
+    // Update timer display immediately
+    updateTimerDisplay(gameState.maxTime);
     
     // Show playing phase
     showPhase('playing');
@@ -212,7 +225,7 @@ function startTimer() {
         gameState.elapsedTime = elapsed;
         const timeRemaining = Math.max(0, gameState.maxTime - elapsed);
         
-        updateTimerDisplays(timeRemaining);
+        updateTimerDisplay(timeRemaining);
         
         if (timeRemaining <= 0) {
             endGame(true); // true indicates time ran out
@@ -224,7 +237,6 @@ function startTimer() {
 function endGame(timeRanOut = false) {
     gameState.phase = 'ended';
     isDetecting = false;
-    toggleStartCountdown(false);
     
     // Stop timer
     if (gameState.timerInterval) {
@@ -242,7 +254,6 @@ function endGame(timeRanOut = false) {
     if (ctx && canvas) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
-    updateInfoCard([]);
     
     // Update end screen
     document.getElementById('finalTime').textContent = gameState.elapsedTime + 's';
@@ -300,12 +311,15 @@ async function detectFrame() {
         // Process predictions
         const detections = processOutput(predictions);
         
-        // Draw results
+        // Filter detections by object type
         const filteredDetections = filterDetectionsByObject(detections);
+        gameState.currentDetections = filteredDetections;
+        
+        // Draw results
         drawDetections(filteredDetections);
         
-        // Update UI
-        updateInfoCard(filteredDetections);
+        // Update object count
+        updateObjectCount(filteredDetections.length);
         
     } catch (error) {
         console.error('Detection error:', error);
@@ -443,58 +457,8 @@ function drawDetections(detections) {
     });
 }
 
-// Update info card
-function updateInfoCard(detections) {
-    const infoCard = document.getElementById('infoCard');
-    const filterMeta = OBJECT_DETAILS[gameState.objectFilter] || OBJECT_DETAILS.all;
-    
-    if (gameState.phase !== 'playing') {
-        infoCard.innerHTML = `<p>Ready to detect ${filterMeta.label}</p>`;
-        return;
-    }
-    
-    if (detections.length === 0) {
-        if (gameState.objectFilter === 'all') {
-            infoCard.innerHTML = '<p>Point camera at recyclables</p>';
-        } else {
-            infoCard.innerHTML = `<p>No ${filterMeta.label} detected yet</p>`;
-        }
-        return;
-    }
-    
-    if (gameState.objectFilter === 'all') {
-        const counts = {};
-        detections.forEach(det => {
-            counts[det.class] = (counts[det.class] || 0) + 1;
-        });
-        
-        const totalCount = detections.length;
-        let html = `<p style="margin-bottom: 0.5rem;">${totalCount} ${totalCount === 1 ? 'object' : 'objects'} detected</p>`;
-        html += '<div>';
-        for (const [className, count] of Object.entries(counts)) {
-            const detail = OBJECT_DETAILS[className] || OBJECT_DETAILS.all;
-            const noun = count === 1 ? detail.singular : detail.plural;
-            html += `<span>${detail.emoji || '♻️'} ${noun}: ${count}</span>`;
-        }
-        html += '</div>';
-        infoCard.innerHTML = html;
-        return;
-    }
-    
-    const totalCount = detections.length;
-    const noun = totalCount === 1 ? filterMeta.singular : filterMeta.plural;
-    infoCard.innerHTML = `<p style="margin-bottom: 0;">${filterMeta.emoji} ${totalCount} ${noun} detected</p>`;
-}
-
 // Setup event listeners
 function setupEventListeners() {
-    // Object filter buttons
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            setObjectFilter(btn.dataset.filter);
-        });
-    });
-    
     // Difficulty buttons
     document.querySelectorAll('.difficulty-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -506,6 +470,30 @@ function setupEventListeners() {
     // Start game button
     document.getElementById('startGameBtn').addEventListener('click', () => {
         startGame();
+    });
+    
+    // Filter toggle button
+    const filterToggleBtn = document.getElementById('filterToggleBtn');
+    const filterDropdown = document.getElementById('filterDropdown');
+    
+    filterToggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleFilterDropdown();
+    });
+    
+    // Filter options
+    document.querySelectorAll('.filter-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+            setObjectFilter(btn.dataset.filter);
+            closeFilterDropdown();
+        });
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!filterToggleBtn.contains(e.target) && !filterDropdown.contains(e.target)) {
+            closeFilterDropdown();
+        }
     });
     
     // Declare finish button
@@ -525,59 +513,62 @@ function setupEventListeners() {
     });
 }
 
-function toggleStartCountdown(showCountdown) {
-    const startButton = document.getElementById('startGameBtn');
-    const countdownDisplay = document.getElementById('countdownDisplay');
-    const hudTimer = document.getElementById('hudTimer');
+// Toggle filter dropdown
+function toggleFilterDropdown() {
+    const dropdown = document.getElementById('filterDropdown');
+    const toggleBtn = document.getElementById('filterToggleBtn');
     
-    if (!startButton || !countdownDisplay) {
-        return;
-    }
-    
-    if (showCountdown) {
-        startButton.classList.add('hidden');
-        countdownDisplay.classList.remove('hidden');
+    if (dropdown.classList.contains('hidden')) {
+        dropdown.classList.remove('hidden');
+        toggleBtn.classList.add('open');
     } else {
-        countdownDisplay.classList.add('hidden');
-        countdownDisplay.classList.remove('warning', 'danger');
-        startButton.classList.remove('hidden');
-        if (hudTimer) {
-            hudTimer.style.color = '#ffffff';
-        }
+        dropdown.classList.add('hidden');
+        toggleBtn.classList.remove('open');
     }
 }
 
-function updateTimerDisplays(timeRemaining) {
-    const headerTimer = document.getElementById('headerTimerValue');
-    const hudTimer = document.getElementById('hudTimer');
-    const countdownDisplay = document.getElementById('countdownDisplay');
+function closeFilterDropdown() {
+    const dropdown = document.getElementById('filterDropdown');
+    const toggleBtn = document.getElementById('filterToggleBtn');
+    
+    dropdown.classList.add('hidden');
+    toggleBtn.classList.remove('open');
+}
+
+// Update functions
+function updateDifficultyDisplay() {
+    const difficultyValue = document.getElementById('selectedDifficultyValue');
+    const difficulty = gameState.difficulty;
+    
+    if (difficulty && CONFIG.difficulties[difficulty]) {
+        const config = CONFIG.difficulties[difficulty];
+        difficultyValue.textContent = `${config.emoji} ${config.name}`;
+    }
+}
+
+function updateTargetScoreDisplay() {
+    const targetScoreValue = document.getElementById('targetScoreValue');
+    targetScoreValue.textContent = gameState.targetScore;
+}
+
+function updateTimerDisplay(timeRemaining) {
+    const timerValue = document.getElementById('timerValue');
     const formatted = formatTime(timeRemaining);
     
-    if (headerTimer) {
-        headerTimer.textContent = formatted;
-    }
-    if (hudTimer) {
-        hudTimer.textContent = formatted;
-    }
+    timerValue.textContent = formatted;
     
-    if (countdownDisplay) {
-        countdownDisplay.classList.remove('warning', 'danger');
-        if (timeRemaining <= 10 && timeRemaining > 5) {
-            countdownDisplay.classList.add('warning');
-        } else if (timeRemaining <= 5) {
-            countdownDisplay.classList.add('danger');
-        }
+    // Add warning colors
+    timerValue.classList.remove('warning', 'danger');
+    if (timeRemaining <= 10 && timeRemaining > 5) {
+        timerValue.classList.add('warning');
+    } else if (timeRemaining <= 5) {
+        timerValue.classList.add('danger');
     }
-    
-    if (hudTimer) {
-        if (timeRemaining <= 10 && timeRemaining > 5) {
-            hudTimer.style.color = '#ff9800';
-        } else if (timeRemaining <= 5) {
-            hudTimer.style.color = '#f44336';
-        } else {
-            hudTimer.style.color = '#ffffff';
-        }
-    }
+}
+
+function updateObjectCount(count) {
+    const objectCount = document.getElementById('objectCount');
+    objectCount.textContent = count;
 }
 
 function formatTime(seconds) {
@@ -591,53 +582,29 @@ function generateTargetScore() {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function updateDifficultyInfo() {
-    const selectedModeLabel = document.getElementById('selectedModeLabel');
-    const targetScoreValue = document.getElementById('targetScoreValue');
-    const headerTimerValue = document.getElementById('headerTimerValue');
-    const hudTimer = document.getElementById('hudTimer');
-    
-    if (!gameState.difficulty) {
-        if (selectedModeLabel) {
-            selectedModeLabel.textContent = 'Choose a difficulty to begin';
-        }
-        if (targetScoreValue) {
-            targetScoreValue.textContent = '--';
-        }
-        if (headerTimerValue) {
-            headerTimerValue.textContent = '--';
-        }
-        if (hudTimer) {
-            hudTimer.textContent = '0s';
-            hudTimer.style.color = '#ffffff';
-        }
-        return;
-    }
-    
-    if (selectedModeLabel) {
-        selectedModeLabel.textContent = `${DIFFICULTY_DISPLAY[gameState.difficulty] || CONFIG.difficulties[gameState.difficulty].name} Mode`;
-    }
-    if (targetScoreValue) {
-        targetScoreValue.textContent = gameState.targetScore;
-    }
-    if (headerTimerValue) {
-        headerTimerValue.textContent = formatTime(gameState.maxTime);
-    }
-    if (hudTimer) {
-        hudTimer.textContent = formatTime(gameState.maxTime);
-        hudTimer.style.color = '#ffffff';
-    }
-}
-
 function setObjectFilter(filterValue) {
     const nextFilter = OBJECT_DETAILS[filterValue] ? filterValue : 'all';
     gameState.objectFilter = nextFilter;
     
-    document.querySelectorAll('.filter-btn').forEach(btn => {
+    // Update filter button display
+    const filterIcon = document.getElementById('filterIcon');
+    const filterText = document.getElementById('filterText');
+    const detail = OBJECT_DETAILS[nextFilter];
+    
+    filterIcon.textContent = detail.emoji;
+    filterText.textContent = detail.label;
+    
+    // Update active state
+    document.querySelectorAll('.filter-option').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.filter === nextFilter);
     });
     
-    updateInfoCard([]);
+    // Update object count if game is playing
+    if (gameState.phase === 'playing') {
+        const filteredDetections = filterDetectionsByObject(gameState.currentDetections);
+        drawDetections(filteredDetections);
+        updateObjectCount(filteredDetections.length);
+    }
 }
 
 function resetToDifficultySelection() {
@@ -646,11 +613,10 @@ function resetToDifficultySelection() {
     gameState.targetScore = null;
     gameState.elapsedTime = 0;
     gameState.startTime = 0;
+    gameState.currentDetections = [];
     
-    toggleStartCountdown(false);
-    updateDifficultyInfo();
     showPhase('difficulty-selection');
-    updateInfoCard([]);
+    updateObjectCount(0);
 }
 
 // Handle visibility change
