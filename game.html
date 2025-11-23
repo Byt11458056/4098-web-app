@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Recycle Game Mode</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2196F3">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Welcome Screen -->
+        <div class="game-screen" id="welcomeScreen">
+            <div class="game-content">
+                <h1 class="game-title">🎮 Recycle Game</h1>
+                <p class="game-description">Detect recyclables to score points!</p>
+                <div class="game-info-box">
+                    <h3>How to Play:</h3>
+                    <ul>
+                        <li>🥫 Can = 2 points</li>
+                        <li>📄 Paper = 2 points</li>
+                        <li>🍾 Bottle = 2 points</li>
+                    </ul>
+                    <p class="game-duration">⏱️ Duration: 120 seconds</p>
+                </div>
+                <button class="game-start-btn" id="startGameBtn">Start Game</button>
+                <button class="game-back-btn" id="backToMainBtn">Back to Main</button>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div class="game-screen hidden" id="gameScreen">
+            <div class="camera-container">
+                <video id="videoElement" autoplay playsinline></video>
+                <canvas id="canvas"></canvas>
+                <div class="loading-overlay" id="loadingOverlay">
+                    <div class="spinner"></div>
+                    <p>Loading model...</p>
+                </div>
+                
+                <!-- Game HUD -->
+                <div class="game-hud">
+                    <div class="hud-item">
+                        <div class="hud-label">Target</div>
+                        <div class="hud-value target" id="targetScore">10</div>
+                    </div>
+                    <div class="hud-item">
+                        <div class="hud-label">Score</div>
+                        <div class="hud-value score" id="currentScore">0</div>
+                    </div>
+                    <div class="hud-item">
+                        <div class="hud-label">Time</div>
+                        <div class="hud-value timer" id="timer">120</div>
+                    </div>
+                </div>
+
+                <!-- Exit Button -->
+                <button class="game-exit-btn" id="exitGameBtn">✕</button>
+
+                <!-- Info Card (Floating Bottom Center) -->
+                <div class="info-overlay">
+                    <div class="info-card" id="infoCard">
+                        <p>Point camera at recyclables</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- End Screen -->
+        <div class="game-screen hidden" id="endScreen">
+            <div class="game-content">
+                <h1 class="game-title">🎉 Game Over!</h1>
+                <div class="game-results">
+                    <div class="result-item">
+                        <div class="result-label">Target Score</div>
+                        <div class="result-value" id="finalTarget">10</div>
+                    </div>
+                    <div class="result-item highlight">
+                        <div class="result-label">Your Score</div>
+                        <div class="result-value" id="finalScore">0</div>
+                    </div>
+                    <div class="result-message" id="resultMessage">Great job!</div>
+                </div>
+                <div class="game-buttons">
+                    <button class="game-start-btn" id="replayBtn">🔄 Play Again</button>
+                    <button class="game-back-btn" id="exitToMainBtn">🏠 Exit to Main</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0"></script>
+    <script src="game.js"></script>
+</body>
+</html>
