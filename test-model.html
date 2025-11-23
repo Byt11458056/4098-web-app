@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Model Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #1976D2;
+        }
+        #log {
+            background: #000;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🧪 Model Loading Test</h1>
+        <p>This page tests if your TensorFlow.js model loads correctly.</p>
+    </div>
+
+    <div class="card">
+        <h2>Tests</h2>
+        <div id="status"></div>
+        <button onclick="runTests()">Run Tests</button>
+    </div>
+
+    <div class="card">
+        <h2>Console Output</h2>
+        <div id="log"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0"></script>
+    <script>
+        const statusDiv = document.getElementById('status');
+        const logDiv = document.getElementById('log');
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.textContent += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        function showStatus(message, isSuccess) {
+            const className = isSuccess ? 'success' : 'error';
+            statusDiv.innerHTML += `<div class="status ${className}">${message}</div>`;
+        }
+
+        async function runTests() {
+            statusDiv.innerHTML = '';
+            logDiv.textContent = '';
+            
+            log('Starting tests...');
+            log('='.repeat(50));
+
+            // Test 1: Check TensorFlow.js
+            try {
+                log('Test 1: Checking TensorFlow.js...');
+                if (typeof tf !== 'undefined') {
+                    log(`✓ TensorFlow.js loaded (version ${tf.version.tfjs})`);
+                    showStatus('✓ TensorFlow.js loaded successfully', true);
+                } else {
+                    throw new Error('TensorFlow.js not found');
+                }
+            } catch (error) {
+                log(`✗ Error: ${error.message}`);
+                showStatus('✗ TensorFlow.js failed to load', false);
+                return;
+            }
+
+            // Test 2: Check WebGL
+            try {
+                log('Test 2: Checking WebGL support...');
+                const backend = tf.getBackend();
+                log(`Current backend: ${backend}`);
+                
+                if (backend === 'webgl') {
+                    log('✓ WebGL is available and active');
+                    showStatus('✓ WebGL backend active (optimal performance)', true);
+                } else {
+                    log(`⚠ Warning: Using ${backend} backend (may be slower)`);
+                    showStatus(`⚠ Using ${backend} backend (WebGL not available)`, false);
+                }
+            } catch (error) {
+                log(`✗ Error checking backend: ${error.message}`);
+            }
+
+            // Test 3: Check model files
+            log('Test 3: Checking model files...');
+            const modelPath = './model/model.json';
+            
+            try {
+                log(`Attempting to fetch: ${modelPath}`);
+                const response = await fetch(modelPath);
+                
+                if (response.ok) {
+                    log('✓ model.json found');
+                    const modelJson = await response.json();
+                    log(`Model format: ${modelJson.format}`);
+                    log(`Model has ${modelJson.weightsManifest?.length || 0} weight manifest(s)`);
+                    
+                    // Check for weight files
+                    if (modelJson.weightsManifest && modelJson.weightsManifest.length > 0) {
+                        const weightFile = modelJson.weightsManifest[0].paths[0];
+                        log(`Expected weight file: ${weightFile}`);
+                        
+                        const weightResponse = await fetch(`./model/${weightFile}`);
+                        if (weightResponse.ok) {
+                            log(`✓ Weight file found (${(weightResponse.headers.get('content-length') / 1024 / 1024).toFixed(2)} MB)`);
+                            showStatus('✓ All model files found', true);
+                        } else {
+                            log(`✗ Weight file not found: ${weightFile}`);
+                            showStatus('✗ Weight file missing', false);
+                            return;
+                        }
+                    }
+                } else {
+                    log(`✗ model.json not found (HTTP ${response.status})`);
+                    showStatus('✗ model.json not found', false);
+                    return;
+                }
+            } catch (error) {
+                log(`✗ Error checking model files: ${error.message}`);
+                showStatus('✗ Failed to check model files', false);
+                return;
+            }
+
+            // Test 4: Load model
+            log('Test 4: Loading model...');
+            try {
+                log('This may take 10-30 seconds...');
+                const model = await tf.loadGraphModel(modelPath);
+                log('✓ Model loaded successfully!');
+                showStatus('✓ Model loaded successfully!', true);
+                
+                // Test 5: Model inference
+                log('Test 5: Testing model inference...');
+                const dummyInput = tf.zeros([1, 320, 320, 3]);
+                const start = performance.now();
+                const output = model.predict(dummyInput);
+                const inferenceTime = performance.now() - start;
+                
+                log(`✓ Inference completed in ${inferenceTime.toFixed(2)}ms`);
+                log(`Output shape: ${output.shape}`);
+                log(`Output dtype: ${output.dtype}`);
+                
+                showStatus(`✓ Model inference works! (${inferenceTime.toFixed(0)}ms)`, true);
+                
+                // Cleanup
+                dummyInput.dispose();
+                output.dispose();
+                model.dispose();
+                
+                log('='.repeat(50));
+                log('All tests passed! ✓');
+                showStatus('🎉 All tests passed! Your model is ready to use.', true);
+                
+            } catch (error) {
+                log(`✗ Error loading/testing model: ${error.message}`);
+                log(error.stack);
+                showStatus('✗ Model loading failed', false);
+            }
+
+            // Memory info
+            try {
+                log('='.repeat(50));
+                log('Memory Info:');
+                const memoryInfo = tf.memory();
+                log(`Tensors in memory: ${memoryInfo.numTensors}`);
+                log(`Data buffers: ${memoryInfo.numDataBuffers}`);
+                log(`Bytes in use: ${(memoryInfo.numBytes / 1024 / 1024).toFixed(2)} MB`);
+            } catch (error) {
+                log('Could not get memory info');
+            }
+        }
+
+        // Auto-run tests on load
+        log('Page loaded. Click "Run Tests" to begin.');
+        log('Make sure you\'re running a local server (not file://)');
+    </script>
+</body>
+</html>
+
