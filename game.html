@@ -89,13 +89,40 @@
                 
                 <!-- Game Info Headers -->
                 <div class="game-info-overlay">
-                    <div class="game-mode-header">
-                        <div class="game-mode-label">Mode</div>
-                        <div class="game-mode-value" id="gameModeDisplay">Easy</div>
+                    <div class="game-header" role="banner">
+                        <div class="game-header-section">
+                            <span class="game-header-label">Mode</span>
+                            <span class="game-mode-value" id="gameModeDisplay">Easy</span>
+                        </div>
+                        <div class="game-header-section object-filter-section" id="objectFilterSection">
+                            <span class="game-header-label">Object Type</span>
+                            <button class="object-filter-btn" id="objectFilterToggle" type="button" aria-haspopup="listbox" aria-expanded="false">
+                                <span class="object-filter-emoji" id="objectFilterEmoji">🥫</span>
+                                <span class="object-filter-text" id="objectFilterLabel">Can</span>
+                                <span class="object-filter-chevron" aria-hidden="true">▾</span>
+                            </button>
+                            <div class="object-filter-dropdown hidden" id="objectFilterDropdown" role="listbox">
+                                <button class="object-filter-option active" data-object="can" role="option" aria-selected="true">
+                                    <span class="object-filter-option-emoji">🥫</span>
+                                    <span>Can</span>
+                                </button>
+                                <button class="object-filter-option" data-object="paper" role="option" aria-selected="false">
+                                    <span class="object-filter-option-emoji">📄</span>
+                                    <span>Paper</span>
+                                </button>
+                                <button class="object-filter-option" data-object="plastic-bottle" role="option" aria-selected="false">
+                                    <span class="object-filter-option-emoji">🍾</span>
+                                    <span>Bottle</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="game-header-section timer">
+                            <span class="game-header-label">Time Left</span>
+                            <span class="game-timer-value" id="gameTimerDisplay">120s</span>
+                        </div>
                     </div>
-                    <div class="game-timer-header">
-                        <div class="game-timer-label">Time Remaining</div>
-                        <div class="game-timer-value" id="gameTimerDisplay">120s</div>
+                    <div class="game-status-row">
+                        <span class="game-status-label">Detecting</span>
                         <div class="game-detecting-info">
                             <span class="detecting-emoji" id="detectingEmoji">🥫</span>
                             <span class="detecting-text" id="detectingText">Detecting Can</span>

@@ -13,6 +13,14 @@ const CONFIG = {
     }
 };
 
+const OBJECT_META = {
+    'can': { label: 'Can', plural: 'cans', emoji: '🥫' },
+    'paper': { label: 'Paper', plural: 'paper items', emoji: '📄' },
+    'plastic-bottle': { label: 'Bottle', plural: 'bottles', emoji: '🍾' }
+};
+
+const DEFAULT_OBJECT_META = { label: 'Object', plural: 'objects', emoji: '♻️' };
+
 // Global variables
 let model = null;
 let video = null;
@@ -33,6 +41,68 @@ let gameState = {
     timerInterval: null,
     startTime: 0
 };
+
+let objectFilterToggle = null;
+let objectFilterDropdown = null;
+let objectFilterSection = null;
+
+function getObjectMeta(objectKey) {
+    return objectKey && OBJECT_META[objectKey] ? OBJECT_META[objectKey] : DEFAULT_OBJECT_META;
+}
+
+function updateObjectFilterDisplay() {
+    const hasSelection = Boolean(gameState.selectedObject);
+    const meta = hasSelection ? getObjectMeta(gameState.selectedObject) : DEFAULT_OBJECT_META;
+    
+    const filterEmojiEl = document.getElementById('objectFilterEmoji');
+    const filterLabelEl = document.getElementById('objectFilterLabel');
+    if (filterEmojiEl) filterEmojiEl.textContent = meta.emoji;
+    if (filterLabelEl) filterLabelEl.textContent = meta.label;
+    
+    const detectingEmojiEl = document.getElementById('detectingEmoji');
+    const detectingTextEl = document.getElementById('detectingText');
+    if (detectingEmojiEl) detectingEmojiEl.textContent = meta.emoji;
+    if (detectingTextEl) detectingTextEl.textContent = `Detecting ${meta.label}`;
+    
+    document.querySelectorAll('.object-filter-option').forEach(option => {
+        const isActive = hasSelection && option.dataset.object === gameState.selectedObject;
+        option.classList.toggle('active', isActive);
+        option.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+}
+
+function setSelectedObject(objectKey, options = {}) {
+    if (!objectKey) return;
+    gameState.selectedObject = objectKey;
+    updateObjectFilterDisplay();
+    
+    if (options.updateCard) {
+        updateInfoCard([]);
+    }
+}
+
+function openObjectFilterDropdown() {
+    if (!objectFilterDropdown || !objectFilterToggle) return;
+    objectFilterDropdown.classList.remove('hidden');
+    objectFilterToggle.setAttribute('aria-expanded', 'true');
+    objectFilterToggle.classList.add('open');
+}
+
+function closeObjectFilterDropdown() {
+    if (!objectFilterDropdown || !objectFilterToggle) return;
+    objectFilterDropdown.classList.add('hidden');
+    objectFilterToggle.setAttribute('aria-expanded', 'false');
+    objectFilterToggle.classList.remove('open');
+}
+
+function toggleObjectFilterDropdown() {
+    if (!objectFilterDropdown) return;
+    if (objectFilterDropdown.classList.contains('hidden')) {
+        openObjectFilterDropdown();
+    } else {
+        closeObjectFilterDropdown();
+    }
+}
 
 // Screen management
 const screens = {
@@ -55,6 +125,8 @@ async function init() {
     
     // Setup event listeners
     setupEventListeners();
+    
+    updateObjectFilterDisplay();
     
     // Show object selection screen
     showScreen('objectSelection');
@@ -126,24 +198,24 @@ function stopCamera() {
 
 // Start game
 async function startGame() {
+    if (!gameState.selectedObject) {
+        alert('Please select an object type before starting.');
+        showScreen('objectSelection');
+        return;
+    }
+    
+    if (!gameState.difficulty) {
+        alert('Please choose a difficulty level.');
+        showScreen('difficulty');
+        return;
+    }
+    
     // Initialize game state
     gameState.elapsedTime = 0;
     gameState.isGameActive = true;
     gameState.startTime = Date.now();
     
     // Update UI with selected object and difficulty
-    const objectEmojis = {
-        'can': '🥫',
-        'paper': '📄',
-        'plastic-bottle': '🍾'
-    };
-    
-    const objectNames = {
-        'can': 'Can',
-        'paper': 'Paper',
-        'plastic-bottle': 'Bottle'
-    };
-    
     const difficultyNames = {
         'easy': '😊 Easy',
         'normal': '😎 Normal',
@@ -153,8 +225,11 @@ async function startGame() {
     // Update game info overlay
     document.getElementById('gameModeDisplay').textContent = difficultyNames[gameState.difficulty];
     document.getElementById('gameTimerDisplay').textContent = gameState.maxTime + 's';
-    document.getElementById('detectingEmoji').textContent = objectEmojis[gameState.selectedObject];
-    document.getElementById('detectingText').textContent = 'Detecting ' + objectNames[gameState.selectedObject];
+    const selectedMeta = getObjectMeta(gameState.selectedObject);
+    document.getElementById('detectingEmoji').textContent = selectedMeta.emoji;
+    document.getElementById('detectingText').textContent = `Detecting ${selectedMeta.label}`;
+    updateObjectFilterDisplay();
+    closeObjectFilterDropdown();
     
     // Show game screen
     showScreen('game');
@@ -211,6 +286,7 @@ function startTimer() {
 function endGame(timeRanOut = false) {
     gameState.isGameActive = false;
     isDetecting = false;
+    closeObjectFilterDropdown();
     
     // Stop timer
     if (gameState.timerInterval) {
@@ -228,13 +304,8 @@ function endGame(timeRanOut = false) {
     }
     
     // Update end screen
-    const objectEmojis = {
-        'can': '🥫 Can',
-        'paper': '📄 Paper',
-        'plastic-bottle': '🍾 Bottle'
-    };
-    
-    document.getElementById('finalObjectType').textContent = objectEmojis[gameState.selectedObject] || gameState.selectedObject;
+    const meta = getObjectMeta(gameState.selectedObject);
+    document.getElementById('finalObjectType').textContent = `${meta.emoji} ${meta.label}`;
     document.getElementById('finalDifficulty').textContent = gameState.difficulty.charAt(0).toUpperCase() + gameState.difficulty.slice(1);
     document.getElementById('finalTime').textContent = gameState.elapsedTime + 's';
     
@@ -432,29 +503,19 @@ function drawDetections(detections) {
 // Update info card
 function updateInfoCard(detections) {
     const infoCard = document.getElementById('infoCard');
+    const meta = getObjectMeta(gameState.selectedObject);
+    const singleLabel = (meta.label || DEFAULT_OBJECT_META.label).toLowerCase();
+    const pluralLabel = (meta.plural || DEFAULT_OBJECT_META.plural).toLowerCase();
     
     if (detections.length === 0) {
-        const objectNames = {
-            'can': 'cans',
-            'paper': 'paper',
-            'plastic-bottle': 'bottles'
-        };
-        const name = objectNames[gameState.selectedObject] || 'objects';
-        infoCard.innerHTML = `<p>Point camera at ${name}</p>`;
+        infoCard.innerHTML = `<p>Point camera at ${pluralLabel}</p>`;
         return;
     }
     
-    const emojis = {
-        'can': '🥫',
-        'paper': '📄',
-        'plastic-bottle': '🍾'
-    };
-    
     const totalCount = detections.length;
-    const emoji = emojis[gameState.selectedObject] || '♻️';
-    const displayName = gameState.selectedObject === 'plastic-bottle' ? 'bottle' : gameState.selectedObject;
+    const displayName = totalCount === 1 ? singleLabel : pluralLabel;
     
-    let html = `<p style="margin-bottom: 0.5rem;">${emoji} ${totalCount} ${displayName}${totalCount > 1 ? 's' : ''} detected</p>`;
+    let html = `<p style="margin-bottom: 0.5rem;">${meta.emoji} ${totalCount} ${displayName} detected</p>`;
     
     infoCard.innerHTML = html;
 }
@@ -464,7 +525,7 @@ function setupEventListeners() {
     // Object selection buttons
     document.querySelectorAll('.selection-btn[data-object]').forEach(btn => {
         btn.addEventListener('click', () => {
-            gameState.selectedObject = btn.dataset.object;
+            setSelectedObject(btn.dataset.object);
             showScreen('difficulty');
             // Reset mode info section when entering difficulty screen
             document.getElementById('modeInfoSection').classList.add('hidden');
@@ -518,6 +579,7 @@ function setupEventListeners() {
     // Exit game during gameplay
     document.getElementById('exitGameBtn').addEventListener('click', () => {
         if (confirm('Are you sure you want to exit the game? You will return to the main menu.')) {
+            closeObjectFilterDropdown();
             stopCamera();
             if (gameState.timerInterval) {
                 clearInterval(gameState.timerInterval);
@@ -540,6 +602,40 @@ function setupEventListeners() {
     document.getElementById('exitToMainBtn').addEventListener('click', () => {
         window.location.href = 'index.html';
     });
+    
+    objectFilterToggle = document.getElementById('objectFilterToggle');
+    objectFilterDropdown = document.getElementById('objectFilterDropdown');
+    objectFilterSection = document.getElementById('objectFilterSection');
+    
+    if (objectFilterToggle && objectFilterDropdown && objectFilterSection) {
+        objectFilterToggle.addEventListener('click', (event) => {
+            event.stopPropagation();
+            toggleObjectFilterDropdown();
+        });
+        
+        document.querySelectorAll('.object-filter-option').forEach(option => {
+            option.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const selected = option.dataset.object;
+                if (selected) {
+                    setSelectedObject(selected, { updateCard: gameState.isGameActive });
+                    closeObjectFilterDropdown();
+                }
+            });
+        });
+        
+        document.addEventListener('click', (event) => {
+            if (!objectFilterSection.contains(event.target)) {
+                closeObjectFilterDropdown();
+            }
+        });
+        
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                closeObjectFilterDropdown();
+            }
+        });
+    }
 }
 
 // Handle visibility change
