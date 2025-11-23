@@ -57,6 +57,22 @@
                         <span class="selection-time">60 seconds</span>
                     </button>
                 </div>
+                
+                <!-- Selected Mode Header -->
+                <div class="mode-info-section hidden" id="modeInfoSection">
+                    <div class="mode-header">
+                        <div class="mode-label">Selected Mode</div>
+                        <div class="mode-value" id="selectedMode">Easy</div>
+                    </div>
+                    
+                    <!-- Target Score and Start Button -->
+                    <div class="target-info-header">
+                        <div class="target-label">Target Time</div>
+                        <div class="target-value" id="targetTime">120s</div>
+                        <button class="game-start-btn" id="startGameBtn">🎮 Start Game</button>
+                    </div>
+                </div>
+                
                 <button class="game-back-btn" id="backToObjectBtn">← Back</button>
             </div>
         </div>
@@ -71,19 +87,19 @@
                     <p>Loading model...</p>
                 </div>
                 
-                <!-- Game HUD -->
-                <div class="game-hud">
-                    <div class="hud-item">
-                        <div class="hud-label">Detecting</div>
-                        <div class="hud-value target" id="detectedType">Can</div>
+                <!-- Game Info Headers -->
+                <div class="game-info-overlay">
+                    <div class="game-mode-header">
+                        <div class="game-mode-label">Mode</div>
+                        <div class="game-mode-value" id="gameModeDisplay">Easy</div>
                     </div>
-                    <div class="hud-item">
-                        <div class="hud-label">Difficulty</div>
-                        <div class="hud-value score" id="difficulty">Easy</div>
-                    </div>
-                    <div class="hud-item">
-                        <div class="hud-label">Time</div>
-                        <div class="hud-value timer" id="timer">0s</div>
+                    <div class="game-timer-header">
+                        <div class="game-timer-label">Time Remaining</div>
+                        <div class="game-timer-value" id="gameTimerDisplay">120s</div>
+                        <div class="game-detecting-info">
+                            <span class="detecting-emoji" id="detectingEmoji">🥫</span>
+                            <span class="detecting-text" id="detectingText">Detecting Can</span>
+                        </div>
                     </div>
                 </div>
 
