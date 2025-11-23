@@ -273,11 +273,15 @@ body {
 
 /* ==================== BOTTOM BAR ==================== */
 .bottom-bar {
-    position: relative;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
     z-index: 40;
     background: rgba(255, 255, 255, 0.98);
     backdrop-filter: blur(20px);
     padding: 0.9rem 1rem;
+    padding-bottom: calc(0.9rem + env(safe-area-inset-bottom));
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
     border-top: 2px solid rgba(33, 150, 243, 0.2);
     display: flex;
@@ -624,6 +628,7 @@ body {
 
     .bottom-bar {
         padding: 0.7rem 0.8rem;
+        padding-bottom: calc(0.7rem + env(safe-area-inset-bottom));
         gap: 0.6rem;
     }
 
@@ -697,6 +702,7 @@ body {
 
     .bottom-bar {
         padding: 0.6rem 0.8rem;
+        padding-bottom: calc(0.6rem + env(safe-area-inset-bottom));
     }
 
     .count-value {
@@ -742,6 +748,7 @@ body {
 
     .bottom-bar {
         padding: 0.7rem 1.2rem;
+        padding-bottom: calc(0.7rem + env(safe-area-inset-bottom));
     }
 
     .difficulty-buttons {
